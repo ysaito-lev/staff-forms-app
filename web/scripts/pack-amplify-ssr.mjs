@@ -1,30 +1,48 @@
 /**
- * amplify.yml があると Amplify ホスト側の自動 Next SSR パックが走らない環境がある。
- * `npm run build` 後、`output: standalone` の成果物から .amplify-hosting を構築する（Linux ビルド専用）。
+ * amplify.yml を使うとホスト側の自動 Next SSR パックが走らない環境がある。
+ * モノレポでは検証処理が repo 直下の `.amplify-hosting` を参照するため、出力はリポジトリルートに置く。
+ * （appRoot が web であっても、deploy-manifest は `../.amplify-hosting` が必要だった）
  */
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-process.chdir(root);
+const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const repoRoot = join(webRoot, "..");
+const staging = join(repoRoot, ".amplify-hosting");
+
+process.chdir(webRoot);
+
+/** Bash 用にパスをクォート */
+function q(p) {
+  return `'${String(p).replace(/'/g, "'\\''")}'`;
+}
 
 /** @param {string} cmd */
 function sh(cmd) {
-  execSync(cmd, { stdio: "inherit", env: process.env });
+  execSync(cmd, { stdio: "inherit", env: process.env, shell: "/bin/bash" });
 }
 
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 const nextVer = String(pkg.dependencies.next).replace(/^[\^~]/, "");
 
-sh("mkdir -p .amplify-hosting/compute/default .amplify-hosting/static/_next/static");
-sh("cp -r .next/standalone/. .amplify-hosting/compute/default/");
-sh("mkdir -p .amplify-hosting/compute/default/.next/static");
-sh("cp -r .next/static/. .amplify-hosting/compute/default/.next/static/");
-sh("bash -lc '[ -d public ] && cp -r public/. .amplify-hosting/compute/default/public/ || true'");
-sh("cp -r .next/static/. .amplify-hosting/static/_next/static/");
-sh("bash -lc '[ -d public ] && cp -r public/. .amplify-hosting/static/ || true'");
+mkdirSync(join(staging, "compute", "default"), { recursive: true });
+mkdirSync(join(staging, "static", "_next", "static"), { recursive: true });
+
+sh(`cp -r .next/standalone/. ${q(join(staging, "compute", "default"))}/`);
+mkdirSync(join(staging, "compute", "default", ".next", "static"), {
+  recursive: true,
+});
+sh(`cp -r .next/static/. ${q(join(staging, "compute", "default", ".next", "static"))}/`);
+if (existsSync("public")) {
+  mkdirSync(join(staging, "compute", "default", "public"), { recursive: true });
+  sh(`cp -r public/. ${q(join(staging, "compute", "default", "public"))}/`);
+}
+sh(`cp -r .next/static/. ${q(join(staging, "static", "_next", "static"))}/`);
+if (existsSync("public")) {
+  sh(`cp -r public/. ${q(join(staging, "static"))}/`);
+}
 
 const manifest = {
   version: 1,
@@ -50,7 +68,7 @@ const manifest = {
 };
 
 writeFileSync(
-  ".amplify-hosting/deploy-manifest.json",
+  join(staging, "deploy-manifest.json"),
   JSON.stringify(manifest, null, 2),
   "utf8"
 );
@@ -73,4 +91,13 @@ console.log(
 require('./server.js');
 `;
 
-writeFileSync(".amplify-hosting/compute/default/entrypoint.js", entry, "utf8");
+writeFileSync(
+  join(staging, "compute", "default", "entrypoint.js"),
+  entry,
+  "utf8"
+);
+
+console.error(
+  "[pack-amplify-ssr] wrote manifest:",
+  join(staging, "deploy-manifest.json")
+);
