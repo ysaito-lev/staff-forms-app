@@ -10,8 +10,14 @@ import {
   type GoogleOAuthProfile,
 } from "@/lib/google-oauth-allow";
 
+/** ビルド時に env が埋め込まれないよう、キーは文字列リテラルで固定しない参照に寄せる */
+function envTruthy(key: "AUTH_SIGNIN_DEBUG" | "AUTH_SIGNIN_SKIP_STAFF_MATCH"): boolean {
+  const v = process.env[key];
+  return v === "1" || v?.toLowerCase() === "true";
+}
+
 function signInDebug(message: string, detail?: Record<string, string>) {
-  if (process.env.AUTH_SIGNIN_DEBUG !== "1") return;
+  if (!envTruthy("AUTH_SIGNIN_DEBUG")) return;
   console.warn(
     `[auth signIn denied] ${message}`,
     detail ? JSON.stringify(detail) : ""
@@ -27,7 +33,7 @@ async function denySignIn(
   detail?: Record<string, string>
 ): Promise<false> {
   signInDebug(reasonCode, detail);
-  if (process.env.AUTH_SIGNIN_DEBUG === "1") {
+  if (envTruthy("AUTH_SIGNIN_DEBUG")) {
     try {
       const jar = await cookies();
       jar.set("auth-signin-debug", reasonCode, {
@@ -81,10 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
 
       /** 切り分け専用: マスタ照合で弾くかだけを試す。このまま運用しないこと。 */
-      if (
-        process.env.AUTH_SIGNIN_SKIP_STAFF_MATCH === "1" ||
-        process.env.AUTH_SIGNIN_SKIP_STAFF_MATCH?.toLowerCase() === "true"
-      ) {
+      if (envTruthy("AUTH_SIGNIN_SKIP_STAFF_MATCH")) {
         console.warn(
           "[auth] AUTH_SIGNIN_SKIP_STAFF_MATCH: signIn のマスタ氏名突合のみスキップ中。確認後、この環境変数を削除してください。"
         );
