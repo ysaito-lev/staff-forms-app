@@ -1,7 +1,6 @@
 /**
  * amplify.yml を使うとホスト側の自動 Next SSR パックが走らない環境がある。
- * モノレポでは検証処理が repo 直下の `.amplify-hosting` を参照するため、出力はリポジトリルートに置く。
- * （appRoot が web であっても、deploy-manifest は `../.amplify-hosting` が必要だった）
+ * `npm run build` 後、`output: standalone` から `.amplify-hosting` を appRoot（web）直下に構築する。
  */
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -9,17 +8,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const webRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const repoRoot = join(webRoot, "..");
-const staging = join(repoRoot, ".amplify-hosting");
+const staging = join(webRoot, ".amplify-hosting");
 
 process.chdir(webRoot);
 
-/** Bash 用にパスをクォート */
 function q(p) {
   return `'${String(p).replace(/'/g, "'\\''")}'`;
 }
 
-/** @param {string} cmd */
 function sh(cmd) {
   execSync(cmd, { stdio: "inherit", env: process.env, shell: "/bin/bash" });
 }
@@ -67,11 +63,8 @@ const manifest = {
   framework: { name: "next", version: nextVer },
 };
 
-writeFileSync(
-  join(staging, "deploy-manifest.json"),
-  JSON.stringify(manifest, null, 2),
-  "utf8"
-);
+const manifestPath = join(staging, "deploy-manifest.json");
+writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), "utf8");
 
 const entry = `process.on('uncaughtException', (e) => {
   console.error('FATAL:', e);
@@ -97,7 +90,4 @@ writeFileSync(
   "utf8"
 );
 
-console.error(
-  "[pack-amplify-ssr] wrote manifest:",
-  join(staging, "deploy-manifest.json")
-);
+console.error("[pack-amplify-ssr] wrote manifest:", manifestPath);

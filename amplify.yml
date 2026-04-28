@@ -14,7 +14,7 @@ applications:
             - npm run build
             - node scripts/pack-amplify-ssr.mjs
       artifacts:
-        baseDirectory: .next
+        baseDirectory: .amplify-hosting
         files:
           - "**/*"
       cache:
