@@ -14,10 +14,28 @@ const ERROR_MAP: Record<string, string> = {
     "ログインに失敗しました。しばらくしてから再度お試しください。",
 };
 
+/** `AUTH_SIGNIN_DEBUG=1` 時に `/login?reason=…` で表示（本番の切り分け用） */
+const SIGNIN_DENY_REASON_MAP: Record<string, string> = {
+  not_google: "Google 以外のプロバイダー、またはプロフィールが取得できませんでした。",
+  email_unverified:
+    "メールアドレスが未確認のためログインできません。Google アカウント側でメール確認を済ませてください。",
+  allowed_domains_missing:
+    "サーバー設定に職場ドメイン（AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS）がありません。管理者に連絡してください。",
+  domain_not_allowed:
+    "この Google アカウントのドメインではログインできません（許可リストと異なります）。",
+  no_staff_match:
+    "マスタの氏名（またはスタッフID）と、Google に表示されている名前が突合できませんでした。スプレッドシート当月シート・同一表示名が複数行ないかご確認ください。",
+};
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") ?? "/";
   const error = searchParams.get("error");
+  const reason = searchParams.get("reason");
+  const denyHint =
+    reason &&
+    (SIGNIN_DENY_REASON_MAP[reason] ??
+      `（デバッグ）拒否コード: ${reason}`);
   const [loading, setLoading] = useState(false);
 
   const openGoogle = async () => {
@@ -43,12 +61,13 @@ function LoginForm() {
               </p>
             </div>
 
-            {error && (
+            {(denyHint || error) && (
               <div
                 className="mt-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm leading-relaxed text-red-900"
                 role="alert"
               >
-                {ERROR_MAP[error] ?? ERROR_MAP.Default}
+                {denyHint ??
+                  (ERROR_MAP[error!] ?? ERROR_MAP.Default)}
               </div>
             )}
 
