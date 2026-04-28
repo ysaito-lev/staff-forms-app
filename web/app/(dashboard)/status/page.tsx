@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import { loadMyResponses } from "@/lib/my-responses-data";
-import { inThisMonth, inThisWeek } from "@/lib/date-utils";
+import { inThisMonth, inThisWeek, submissionInMvbeWindowJst } from "@/lib/date-utils";
 
 export default async function StatusPage() {
   const session = await auth();
@@ -20,7 +20,7 @@ export default async function StatusPage() {
   const soreineWeek = soreine.some((r) => inThisWeek(r.submittedAt));
   const soreineMonth = soreine.some((r) => inThisMonth(r.submittedAt));
   const mvbeWeek = mvbe.some((r) => inThisWeek(r.submittedAt));
-  const mvbeMonth = mvbe.some((r) => inThisMonth(r.submittedAt));
+  const mvbeMonth = mvbe.some((r) => submissionInMvbeWindowJst(r.submittedAt));
 
   const Row = ({
     label,
@@ -59,7 +59,10 @@ export default async function StatusPage() {
       <div className="mx-auto max-w-2xl">
         <h1 className="text-xl font-bold text-slate-900">回答状況</h1>
         <p className="mt-2 text-sm text-slate-600">
-          今週は「月曜 0:00」からの集計です。今月は暦の月です。
+          今週は「月曜 0:00」からの集計です。ソレイイネの「今月」は暦の月です。
+          <span className="block mt-1">
+            MVBe の「今月」は現在の提出ウィンドウ（前半は前月16日〜今月15日、後半は当月16日〜本日まで）です。
+          </span>
         </p>
 
         <div className="mt-8 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

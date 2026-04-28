@@ -70,6 +70,56 @@ export function inThisMonth(iso: string): boolean {
   return a.y === b.y && a.m === b.m;
 }
 
+function pad2(n: number): string {
+  return n.toString().padStart(2, "0");
+}
+
+/** JST 暦日の 0:00（その日の始まり）。 */
+function jstDayStart(y: number, m: number, day: number): Date {
+  return new Date(
+    `${y.toString().padStart(4, "0")}-${pad2(m)}-${pad2(day)}T00:00:00+09:00`
+  );
+}
+
+function prevCalendarMonth(y: number, m: number): { y: number; m: number } {
+  if (m <= 1) return { y: y - 1, m: 12 };
+  return { y, m: m - 1 };
+}
+
+/** anchor を JST とみなした「翌日」の 0:00 JST。 */
+function startOfNextCalendarDayJst(anchor: Date): Date {
+  const { y, m, day } = ymdJst(anchor);
+  const noon = jstNoonOnCalendarDate(y, m, day);
+  const plus = new Date(noon.getTime() + 864e5);
+  const n = ymdJst(plus);
+  return jstDayStart(n.y, n.m, n.day);
+}
+
+/**
+ * MVBe「回答済み／同一提出期」のウィンドウ（JST）。
+ * - 本日が 1〜15 日: [前月16日0:00, 今月16日0:00)
+ * - 本日が 16 日以降: [今月16日0:00, 明日0:00)
+ */
+export function submissionInMvbeWindowJst(
+  iso: string,
+  anchor: Date = new Date()
+): boolean {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return false;
+  const { y: cy, m: cm, day: cday } = ymdJst(anchor);
+
+  if (cday <= 15) {
+    const { y: py, m: pm } = prevCalendarMonth(cy, cm);
+    const start = jstDayStart(py, pm, 16);
+    const endExclusive = jstDayStart(cy, cm, 16);
+    return t >= start && t < endExclusive;
+  }
+
+  const start = jstDayStart(cy, cm, 16);
+  const endExclusive = startOfNextCalendarDayJst(anchor);
+  return t >= start && t < endExclusive;
+}
+
 /** 日時が指定した暦月（Asia/Tokyo）に含まれるか */
 export function inCalendarMonthJst(
   iso: string,

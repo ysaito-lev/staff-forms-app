@@ -2,11 +2,11 @@ import { SOREINE_VALUES, normalizeSoreineValueCell } from "@/lib/form-copy";
 import {
   getCalendarMonthRangeJst,
   getJstYearMonthFromIso,
-  inThisMonth,
   inThisWeek,
   isIsoInRange,
   normalizeSheetTimestamp,
   startOfIsoWeekJst,
+  submissionInMvbeWindowJst,
 } from "@/lib/date-utils";
 import { getActiveStaff } from "@/lib/master";
 import { addCalendarMonths, formatYearMonthParam } from "@/lib/ranking-data";
@@ -354,7 +354,7 @@ export function pctDelta(
   return { diff: current - previous, percent: Math.round(p * 10) / 10 };
 }
 
-/** 今週のソレイイネ未提出・今月の MVBe 未提出（在籍者ベース） */
+/** 今週のソレイイネ未提出・MVBe 未提出（現在の提出ウィンドウ基準・在籍者ベース） */
 export async function loadNonResponders(): Promise<NonResponders | null> {
   if (!sheetsConfigured()) return null;
   const e = getEnv();
@@ -377,7 +377,7 @@ export async function loadNonResponders(): Promise<NonResponders | null> {
   for (const row of mvbeRows) {
     if (!isDataRowFirstCell(row[0])) continue;
     const ts = normalizeSheetTimestamp(String(row[0]));
-    if (!inThisMonth(ts)) continue;
+    if (!submissionInMvbeWindowJst(ts)) continue;
     const st = findStaffByRespondentCells(staff, mvbeRespondentCells(row));
     if (st) monthAnswered.add(st.id);
   }

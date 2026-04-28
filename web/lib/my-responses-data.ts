@@ -13,7 +13,7 @@ import {
   type MvbeBlockKey,
 } from "@/lib/form-copy";
 import { getActiveStaff, getStaffByIdMap } from "@/lib/master";
-import { inThisMonth, normalizeSheetTimestamp } from "@/lib/date-utils";
+import { normalizeSheetTimestamp, submissionInMvbeWindowJst } from "@/lib/date-utils";
 import {
   isWideMvbeWithIdColumns,
   parseMvbeRowFullBlocks,
@@ -295,9 +295,9 @@ function parseMvbeReceived(
 }
 
 /**
- * MVBe シートに、同一回答者の「今月（JST 暦月）」分の行が既にあるか（月1回制限用）
+ * MVBe シートに、同一回答者の「現在の提出期ウィンドウ（JST・前半クロス／後半は当該日まで）」の行が既にあるか
  */
-export async function hasMvbeSubmissionThisCalendarMonthJst(
+export async function hasMvbeSubmissionInCurrentWindowJst(
   staffId: string
 ): Promise<boolean> {
   if (!sheetsConfigured()) {
@@ -315,7 +315,7 @@ export async function hasMvbeSubmissionThisCalendarMonthJst(
     if (!isDataRowFirstCell(row[0])) continue;
     if (!respondentMatches(row, staffId, respondentName)) continue;
     const ts = normalizeSheetTimestamp(String(row[0]));
-    if (inThisMonth(ts)) return true;
+    if (submissionInMvbeWindowJst(ts)) return true;
   }
   return false;
 }

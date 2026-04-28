@@ -36,7 +36,7 @@ export function MvbeForm({
 }: {
   initialStaff: Staff[];
   lockedRespondentId: string;
-  /** サーバがスプレッドシートから判定（JST 暦月・月1回） */
+  /** 現在のMVBe提出ウィンドウ（JST）に回答あり。サーバがスプレッドシートから判定 */
   alreadySubmittedThisMonth?: boolean;
 }) {
   const [respondentId, setRespondentId] = useState<string | null>(lockedRespondentId);
@@ -141,7 +141,7 @@ export function MvbeForm({
   const submit = async () => {
     if (alreadySubmittedThisMonth) {
       setErrors({
-        form: "今月の MVBe はすでに回答済みです。次回は翌月1日（日本時間）以降にご利用ください。",
+        form: "現在の評価期間において MVBe はすでに回答済みです。同一提出期間内での再送信はできません。",
       });
       return;
     }
@@ -221,11 +221,10 @@ export function MvbeForm({
           className="mb-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
           role="status"
         >
-          <p className="font-medium">今月の MVBe は回答済みです</p>
+          <p className="font-medium">現在の提出期において MVBe は回答済みです</p>
           <p className="mt-1 leading-relaxed">
-            同一の月（日本時間の暦月）に複数回は送信できません。次回は
-            <strong>翌月1日 0:00（日本時間）</strong>
-            以降にご利用ください。内容の確認は{" "}
+            同一評価期間内での再送信はできません（ウィンドウは月の前半は前月16日〜当月15日、後半は当月16日〜本日まで）。
+            内容の確認は{" "}
             <Link href="/my-answers" className="font-medium text-teal-800 underline">
               マイ回答・履歴
             </Link>

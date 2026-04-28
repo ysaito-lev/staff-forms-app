@@ -13,7 +13,7 @@ import { buildMvbeSheetRow } from "@/lib/response-sheet-layout";
 import { appendSheetRow } from "@/lib/sheets-write";
 import { formatResponseSheetTimestampJst } from "@/lib/date-utils";
 import { getEnv, getMvbeSpreadsheetId, sheetsConfigured } from "@/lib/env";
-import { hasMvbeSubmissionThisCalendarMonthJst } from "@/lib/my-responses-data";
+import { hasMvbeSubmissionInCurrentWindowJst } from "@/lib/my-responses-data";
 
 const blockSchema = z
   .object({
@@ -89,12 +89,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const mvbeLocked = await hasMvbeSubmissionThisCalendarMonthJst(respondentId);
+  const mvbeLocked = await hasMvbeSubmissionInCurrentWindowJst(respondentId);
   if (mvbeLocked) {
     return NextResponse.json(
       {
         error:
-          "今月の MVBe はすでに回答済みです。同じ月に複数回は送信できません。次回は翌月1日（日本時間）以降にお試しください。",
+          "現在の評価期間において MVBe はすでに送信済みです。同一提出期間内での再送信はできません。",
       },
       { status: 409 }
     );
