@@ -1,7 +1,11 @@
-import { auth } from "@/auth";
+import { authConfig } from "@/auth.config";
+import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
-export default auth((req) => {
+/** Middleware は `auth.ts`（マスタ照会）を import せず、Edge 向けの基底設定のみ使う */
+const { auth: middlewareAuth } = NextAuth(authConfig);
+
+export default middlewareAuth((req) => {
   const path = req.nextUrl.pathname;
   /** API は各ルートで 401 を返す（fetch が HTML ログインへリダイレクトされないようにする） */
   if (path.startsWith("/api") && !path.startsWith("/api/auth")) {

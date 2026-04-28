@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
+import { authConfig } from "@/auth.config";
 import { isDisplayNameAdmin, parseAdminNamesFromEnv } from "@/lib/admin-env";
 import {
   isEmailVerifiedForLogin,
@@ -9,41 +9,12 @@ import {
 } from "@/lib/google-oauth-allow";
 
 /**
- * JWT 暗号化用。本番では必ず `AUTH_SECRET`（または互換の `NEXTAUTH_SECRET`）を環境変数で設定すること。
- * 開発のみ未設定時に固定文字列で動作させる（チーム共有なら .env.local に同じ値を書くことを推奨）。
+ * `/api/auth` と Server Components が使う設定（マスタ照会など Node 側コールバックを含む）。
+ * Middleware は `auth.config` のみを参照すること。
  */
-function getAuthSecret(): string {
-  const fromEnv = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
-  if (fromEnv && fromEnv.trim().length > 0) {
-    return fromEnv.trim();
-  }
-  if (process.env.NODE_ENV === "development") {
-    return "dev-only-auth-secret-not-for-production-change-with-env";
-  }
-  throw new Error(
-    "AUTH_SECRET が未設定です。本番・プレビューでは Vercel の環境変数などに AUTH_SECRET を設定してください。"
-  );
-}
-
-function googleClientId(): string {
-  return process.env.AUTH_GOOGLE_ID?.trim() ?? "";
-}
-
-function googleClientSecret(): string {
-  return process.env.AUTH_GOOGLE_SECRET?.trim() ?? "";
-}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true,
-  secret: getAuthSecret(),
-  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
-  pages: { signIn: "/login" },
-  providers: [
-    Google({
-      clientId: googleClientId() || "missing-set-AUTH_GOOGLE_ID",
-      clientSecret: googleClientSecret() || "missing-set-AUTH_GOOGLE_SECRET",
-    }),
-  ],
+  ...authConfig,
   callbacks: {
     async signIn({ account, profile }) {
       if (account?.provider !== "google" || !profile) return false;
@@ -79,9 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         session.user.staffId = (token.staffId as string) ?? "";
-        const adminNames = parseAdminNamesFromEnv(
-          process.env.ADMIN_NAMES
-        );
+        const adminNames = parseAdminNamesFromEnv(process.env.ADMIN_NAMES);
         let displayName = session.user.name ?? "";
         const sid = session.user.staffId;
         if (sid) {
