@@ -2,37 +2,77 @@ import NextAuth from "next-auth";
 import { authConfig } from "@/auth.config";
 import { isDisplayNameAdmin, parseAdminNamesFromEnv } from "@/lib/admin-env";
 import {
+  buildGoogleDisplayName,
   isEmailVerifiedForLogin,
   isGoogleAccountAllowed,
   parseGoogleAllowedHostedDomains,
   type GoogleOAuthProfile,
 } from "@/lib/google-oauth-allow";
 
+function signInDebug(message: string, detail?: Record<string, string>) {
+  if (process.env.AUTH_SIGNIN_DEBUG !== "1") return;
+  console.warn(
+    `[auth signIn denied] ${message}`,
+    detail ? JSON.stringify(detail) : ""
+  );
+}
+
 /**
  * `/api/auth` と Server Components が使う設定（マスタ照会など Node 側コールバックを含む）。
  * Middleware は `auth.config` のみを参照すること。
+ *
+ * 拒否理由の切り分け: 本番のランタイムログ向けに `AUTH_SIGNIN_DEBUG=1`（環境変数）を設定。
  */
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   callbacks: {
     async signIn({ account, profile }) {
-      if (account?.provider !== "google" || !profile) return false;
+      if (account?.provider !== "google" || !profile) {
+        signInDebug("not_google_or_missing_profile");
+        return false;
+      }
       const p = profile as GoogleOAuthProfile;
-      if (!isEmailVerifiedForLogin(p)) return false;
+      if (!isEmailVerifiedForLogin(p)) {
+        signInDebug("email_missing_or_unverified", {
+          email: p.email ? "(set)" : "(empty)",
+        });
+        return false;
+      }
       const allowed = parseGoogleAllowedHostedDomains();
       if (allowed.length === 0) {
         console.error(
           "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS が未設定です。職場ドメインをカンマ区切りで設定してください。"
         );
+        signInDebug("allowed_domains_missing");
         return false;
       }
-      if (!isGoogleAccountAllowed(p, allowed)) return false;
+      if (!isGoogleAccountAllowed(p, allowed)) {
+        signInDebug("domain_or_hd_not_allowed", {
+          hd: p.hd ?? "",
+          emailDomain: p.email?.split("@")[1] ?? "",
+          allowedList: allowed.join(","),
+        });
+        return false;
+      }
       const { resolveStaffIdFromGoogleProfile } = await import(
         "@/lib/google-staff-resolve"
       );
-      const staffId = await resolveStaffIdFromGoogleProfile(p);
-      if (!staffId) return false;
+      let staffId: string | null = null;
+      try {
+        staffId = await resolveStaffIdFromGoogleProfile(p);
+      } catch (e) {
+        signInDebug("staff_resolve_threw", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
+      if (!staffId) {
+        signInDebug("no_staff_match", {
+          displayName: buildGoogleDisplayName(p),
+        });
+        return false;
+      }
       return true;
     },
     async jwt({ token, user, account, profile }) {
