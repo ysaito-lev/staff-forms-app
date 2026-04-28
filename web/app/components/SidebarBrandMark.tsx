@@ -1,0 +1,72 @@
+/** Flat on sidebar — no background fill behind the icon. */
+export function SidebarBrandMark() {
+  return (
+    <span
+      className="inline-flex h-12 w-12 shrink-0 items-center justify-center"
+      aria-hidden
+    >
+      <svg
+        viewBox="0 0 48 48"
+        className="h-10 w-10 text-teal-400/95"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <title>アンケート</title>
+        <rect
+          x="8"
+          y="11.5"
+          width="32"
+          height="26.5"
+          rx="2.4"
+          stroke="currentColor"
+          strokeWidth="1.25"
+        />
+        <rect
+          x="16.5"
+          y="7"
+          width="15"
+          height="6.5"
+          rx="1.5"
+          stroke="currentColor"
+          strokeWidth="1.1"
+        />
+        <line
+          x1="12.5"
+          y1="22"
+          x2="35.5"
+          y2="22"
+          stroke="currentColor"
+          strokeWidth="0.95"
+          strokeLinecap="round"
+        />
+        <line
+          x1="12.5"
+          y1="27"
+          x2="35.5"
+          y2="27"
+          stroke="currentColor"
+          strokeWidth="0.9"
+          strokeLinecap="round"
+        />
+        <line
+          x1="12.5"
+          y1="32"
+          x2="35.5"
+          y2="32"
+          stroke="currentColor"
+          strokeWidth="0.9"
+          strokeLinecap="round"
+        />
+        <line
+          x1="12.5"
+          y1="37"
+          x2="30"
+          y2="37"
+          stroke="currentColor"
+          strokeWidth="0.9"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
+  );
+}
