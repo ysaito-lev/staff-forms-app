@@ -16,7 +16,7 @@ function getAuthSecret(): string {
     return "dev-only-auth-secret-not-for-production-change-with-env";
   }
   throw new Error(
-    "AUTH_SECRET が未設定です。本番・プレビューでは Vercel の環境変数などに AUTH_SECRET を設定してください。"
+    "AUTH_SECRET が未設定です。本番では Amplify の環境変数に AUTH_SECRET（または NEXTAUTH_SECRET）を設定し、ビルド時に .env.production へ渡す（amplify.yml 参照）。"
   );
 }
 

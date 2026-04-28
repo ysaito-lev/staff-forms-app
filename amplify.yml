@@ -11,6 +11,12 @@ applications:
             - npm ci --legacy-peer-deps
         build:
           commands:
+            # Next.js middleware はビルド時に AUTH_SECRET が process.env に無いと Edge バンドルへ埋め込まれず、
+            # ランタイムの Node 側と secret が食い違い 500 になる。Amplify の値を .env.production に一度書き出す。
+            - rm -f .env.production
+            - test -n "$AUTH_SECRET" && printf "AUTH_SECRET=%s\n" "$AUTH_SECRET" >> .env.production || echo "WARN build env AUTH_SECRET is empty"
+            - test -n "$NEXTAUTH_SECRET" && printf "NEXTAUTH_SECRET=%s\n" "$NEXTAUTH_SECRET" >> .env.production || true
+            - test -n "$AUTH_URL" && printf "AUTH_URL=%s\n" "$AUTH_URL" >> .env.production || true
             - npm run build
             - node scripts/pack-amplify-ssr.mjs
       artifacts:
