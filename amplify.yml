@@ -21,6 +21,8 @@ applications:
             # 未埋め込みだと clientId が missing-set-AUTH_GOOGLE_ID のままになり Google が invalid_client を返す。
             - test -n "$AUTH_GOOGLE_ID" && printf "AUTH_GOOGLE_ID=%s\n" "$AUTH_GOOGLE_ID" >> .env.production || echo "WARN build env AUTH_GOOGLE_ID is empty"
             - test -n "$AUTH_GOOGLE_SECRET" && printf "AUTH_GOOGLE_SECRET=%s\n" "$AUTH_GOOGLE_SECRET" >> .env.production || echo "WARN build env AUTH_GOOGLE_SECRET is empty"
+            # signIn（Node）でも参照される。ビルドに含めないと空扱いで allowed_domains_missing になる。
+            - test -n "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" && printf "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS=%s\n" "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" >> .env.production || echo "WARN build env AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS is empty"
             # Node API（signIn など）で参照する切り分け用。ビルド時に未埋め込みだと amplify コンソールの値が効かない場合がある。
             - test -n "$AUTH_SIGNIN_DEBUG" && printf "AUTH_SIGNIN_DEBUG=%s\n" "$AUTH_SIGNIN_DEBUG" >> .env.production || true
             - test -n "$AUTH_SIGNIN_SKIP_STAFF_MATCH" && printf "AUTH_SIGNIN_SKIP_STAFF_MATCH=%s\n" "$AUTH_SIGNIN_SKIP_STAFF_MATCH" >> .env.production || true
