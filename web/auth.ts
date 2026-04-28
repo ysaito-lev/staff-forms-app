@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import { cookies } from "next/headers";
 import { authConfig } from "@/auth.config";
 import { isDisplayNameAdmin, parseAdminNamesFromEnv } from "@/lib/admin-env";
 import {
@@ -17,14 +18,28 @@ function signInDebug(message: string, detail?: Record<string, string>) {
   );
 }
 
-/** `AUTH_SIGNIN_DEBUG=1` のときは CloudWatch なしでもブラウザで理由を出せるよう `/login?reason=` へ飛ばす */
-function denySignIn(
+/**
+ * signIn で文字列 URL を返す方法は OAuth コールバックでは無視されることがある（AccessDenied のまま）。
+ * 代わりに短命 Cookie を付け、`pages.error=/login` と middleware で `?reason=` を付与する。
+ */
+async function denySignIn(
   reasonCode: string,
   detail?: Record<string, string>
-): false | string {
+): Promise<false> {
   signInDebug(reasonCode, detail);
   if (process.env.AUTH_SIGNIN_DEBUG === "1") {
-    return `/login?reason=${encodeURIComponent(reasonCode)}`;
+    try {
+      const jar = await cookies();
+      jar.set("auth-signin-debug", reasonCode, {
+        path: "/",
+        maxAge: 120,
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      });
+    } catch {
+      // build や非リクエスト文脈では cookies() が使えない
+    }
   }
   return false;
 }
@@ -34,7 +49,7 @@ function denySignIn(
  * Middleware は `auth.config` のみを参照すること。
  *
  * 拒否理由の切り分け: `AUTH_SIGNIN_DEBUG=1` のとき `console.warn` に加え、
- * `/login?reason=コード` へリダイレクトする（Amplify で CloudWatch が空でも画面で確認可）。
+ * Cookie 経由で `/login` に `reason` が付く（下記 middleware + pages.error）。
  */
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -42,11 +57,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async signIn({ account, profile }) {
       if (account?.provider !== "google" || !profile) {
-        return denySignIn("not_google");
+        return await denySignIn("not_google");
       }
       const p = profile as GoogleOAuthProfile;
       if (!isEmailVerifiedForLogin(p)) {
-        return denySignIn("email_unverified", {
+        return await denySignIn("email_unverified", {
           email: p.email ? "(set)" : "(empty)",
         });
       }
@@ -55,10 +70,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         console.error(
           "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS が未設定です。職場ドメインをカンマ区切りで設定してください。"
         );
-        return denySignIn("allowed_domains_missing");
+        return await denySignIn("allowed_domains_missing");
       }
       if (!isGoogleAccountAllowed(p, allowed)) {
-        return denySignIn("domain_not_allowed", {
+        return await denySignIn("domain_not_allowed", {
           hd: p.hd ?? "",
           emailDomain: p.email?.split("@")[1] ?? "",
           allowedList: allowed.join(","),
@@ -77,7 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         throw e;
       }
       if (!staffId) {
-        return denySignIn("no_staff_match", {
+        return await denySignIn("no_staff_match", {
           displayName: buildGoogleDisplayName(p),
         });
       }

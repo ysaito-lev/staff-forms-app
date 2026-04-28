@@ -12,8 +12,19 @@ export default middlewareAuth((req) => {
     return NextResponse.next();
   }
   if (path === "/login" || path.startsWith("/api/auth")) {
-    if (path === "/login" && req.auth) {
-      return NextResponse.redirect(new URL("/", req.nextUrl.origin));
+    if (path === "/login") {
+      /** `auth-signin-debug` を `?reason=` に付け替え（AUTH_SIGNIN_DEBUG 時の拒否理由表示用） */
+      const debugReason = req.cookies.get("auth-signin-debug")?.value;
+      if (debugReason && !req.nextUrl.searchParams.has("reason")) {
+        const u = req.nextUrl.clone();
+        u.searchParams.set("reason", debugReason);
+        const res = NextResponse.redirect(u);
+        res.cookies.delete("auth-signin-debug");
+        return res;
+      }
+      if (req.auth) {
+        return NextResponse.redirect(new URL("/", req.nextUrl.origin));
+      }
     }
     return NextResponse.next();
   }

@@ -24,7 +24,8 @@ export const authConfig = {
   trustHost: true,
   secret: getAuthSecret(),
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
-  pages: { signIn: "/login" },
+  /** エラー時もデフォルトの /api/auth/error ではなくログイン画面へ（?error= と併用） */
+  pages: { signIn: "/login", error: "/login" },
   providers: [
     Google({
       clientId:
