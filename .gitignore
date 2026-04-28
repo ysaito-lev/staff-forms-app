@@ -1,2 +1,5 @@
 # 社内のみで管理し、リモートには含めない
 要件定義書.md
+
+# Claude Code: 端末ごとの権限・環境（共有不要）
+.claude/settings.local.json
