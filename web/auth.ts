@@ -115,15 +115,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user, account, profile }) {
+      const isGoogleOAuth =
+        account?.provider === "google" ||
+        (typeof token.email === "string" && token.email.trim().length > 0);
+      if (!isGoogleOAuth || typeof token.email !== "string" || !token.email.trim()) {
+        return token;
+      }
+
+      /** マスタ環境変更・氏名ゆれへの追従、および初回のみ user が付く問題の是正 */
+      const {
+        resolveStaffIdFromGoogleProfile,
+        googleProfileFromTokenFields,
+      } = await import("@/lib/google-staff-resolve");
+
       if (user && account?.provider === "google" && profile) {
         const p = profile as GoogleOAuthProfile;
-        const { resolveStaffIdFromGoogleProfile } = await import(
-          "@/lib/google-staff-resolve"
-        );
-        token.staffId = (await resolveStaffIdFromGoogleProfile(p)) ?? "";
-        /** 管理者は session コールバックで `ADMIN_NAMES` とマスタ氏名を照合して決定 */
-        token.isAdmin = false;
+        token.hd = p.hd ?? undefined;
+        token.given_name = p.given_name ?? undefined;
+        token.family_name = p.family_name ?? undefined;
       }
+
+      let oauthProfile: GoogleOAuthProfile | null =
+        profile && typeof profile === "object" && account?.provider === "google"
+          ? (profile as GoogleOAuthProfile)
+          : googleProfileFromTokenFields(token);
+      if (!oauthProfile) {
+        oauthProfile = googleProfileFromTokenFields(token);
+      }
+      if (!oauthProfile) {
+        return token;
+      }
+
+      const prev = (token.staffId as string) ?? "";
+      try {
+        token.staffId =
+          (await resolveStaffIdFromGoogleProfile(oauthProfile)) ?? "";
+      } catch {
+        token.staffId = prev || "";
+      }
+      token.isAdmin = false;
       return token;
     },
     async session({ session, token }) {

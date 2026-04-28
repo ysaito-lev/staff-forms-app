@@ -172,6 +172,14 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
   const idxName = colIndex(headers, "氏名", "name", "表示名");
   const idxFuri = colIndex(headers, "ふりがな", "ふりがな（全角）", "フリガナ");
   const idxNick = colIndex(headers, "あだ名", "nickname", "ニックネーム");
+  const idxMail = colIndex(
+    headers,
+    "メール",
+    "ワークスペースメール",
+    "メールアドレス",
+    "email",
+    "e-mail"
+  );
   const idxMainDep = colIndex(headers, "メイン部署", "部署", "department");
   const idxSubDep = colIndex(headers, "サブ部署", "サブ", "副部署");
   const idxKind = colIndex(headers, "メンバー区分", "区分", "勤務区分");
@@ -202,6 +210,9 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
         rawNick === undefined || rawNick === ""
           ? null
           : String(rawNick).trim() || null;
+      const mailRaw =
+        idxMail >= 0 ? String(row[idxMail] ?? "").trim().toLowerCase() : "";
+      const matchEmail = mailRaw || null;
       const execFromCol =
         idxExec >= 0 ? parseBool(String(row[idxExec] ?? "")) : null;
       const isExecutive = resolveIsExecutive(name, execKeys, () =>
@@ -210,7 +221,15 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
           : EXECUTIVE_DEPARTMENT_NAMES.has(mainDep) ||
             EXECUTIVE_DEPARTMENT_NAMES.has(subDep)
       );
-      out.push({ id, name, department, furigana: furi, nickname, isExecutive });
+      out.push({
+        id,
+        name,
+        matchEmail,
+        department,
+        furigana: furi,
+        nickname,
+        isExecutive,
+      });
     }
     return out;
   }
@@ -218,6 +237,14 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
   // 旧列レイアウト
   const idxDep = colIndex(headers, "部署", "department", "メイン部署");
   const idxStatus = colIndex(headers, "在籍状態", "在籍状況", "status");
+  const idxMailLegacy = colIndex(
+    headers,
+    "メール",
+    "ワークスペースメール",
+    "メールアドレス",
+    "email",
+    "e-mail"
+  );
 
   const fallback =
     idxId < 0 &&
@@ -249,6 +276,11 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
     const statusRaw = fallback ? row[5] : row[idxStatus >= 0 ? idxStatus : 5];
     const active = parseStatusActiveLegacy(statusRaw ? String(statusRaw) : undefined);
     if (!active) continue;
+    const mailLegacy =
+      idxMailLegacy >= 0
+        ? String(row[idxMailLegacy] ?? "").trim().toLowerCase()
+        : "";
+    const matchEmail = mailLegacy || null;
     const idxExecOld = colIndex(headers, "幹部", "is_executive", "executive");
     const execRaw = row[idxExecOld >= 0 ? idxExecOld : 4];
     const isExecutive = resolveIsExecutive(name, execKeys, () =>
@@ -257,6 +289,7 @@ function rowsToStaff(rows: string[][], retired: Set<string>): Staff[] {
     out.push({
       id,
       name,
+      matchEmail,
       department,
       furigana: "",
       nickname,

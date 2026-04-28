@@ -14,6 +14,8 @@ export type Staff = {
   /** ログインの staffId（マスタの氏名と一致させる想定） */
   id: string;
   name: string;
+  /** 任意列「メール」「ワークスペースメール」等。Google と突合するとき氏名のみだと別字で一致しないことがあるため。 */
+  matchEmail?: string | null;
   /** 表示・グルーピング用（メイン部署＋サブ部署） */
   department: string;
   furigana: string;

@@ -18,5 +18,9 @@ declare module "next-auth/jwt" {
   interface JWT {
     staffId?: string;
     isAdmin?: boolean;
+    /** Google プロフィールからコピー（JWT の都度スタッフ突合用） */
+    hd?: string | null;
+    given_name?: string | null;
+    family_name?: string | null;
   }
 }
