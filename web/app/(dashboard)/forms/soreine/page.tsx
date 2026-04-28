@@ -1,3 +1,4 @@
+import { StaffIdMissingNotice } from "@/app/components/StaffIdMissingNotice";
 import { auth } from "@/auth";
 import { getActiveStaff } from "@/lib/master";
 import { SoreineForm } from "./soreine-form";
@@ -8,7 +9,7 @@ export default async function SoreinePage() {
   const session = await auth();
   const staff = await getActiveStaff();
   if (!session?.user.staffId) {
-    return null;
+    return <StaffIdMissingNotice />;
   }
   return (
     <SoreineForm initialStaff={staff} lockedRespondentId={session.user.staffId} />

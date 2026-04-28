@@ -23,9 +23,39 @@ applications:
             - test -n "$AUTH_GOOGLE_SECRET" && printf "AUTH_GOOGLE_SECRET=%s\n" "$AUTH_GOOGLE_SECRET" >> .env.production || echo "WARN build env AUTH_GOOGLE_SECRET is empty"
             # signIn（Node）でも参照される。ビルドに含めないと空扱いで allowed_domains_missing になる。
             - test -n "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" && printf "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS=%s\n" "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" >> .env.production || echo "WARN build env AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS is empty"
-            # Node API（signIn など）で参照する切り分け用。ビルド時に未埋め込みだと amplify コンソールの値が効かない場合がある。
+            # Node API（session / signIn で参照）。ローカルの .env では効くが、Amplify だけ未埋め込みになることを防ぐ。
+            - test -n "$ADMIN_NAMES" && printf "ADMIN_NAMES=%s\n" "$ADMIN_NAMES" >> .env.production || true
+            - test -n "$EXECUTIVE_STAFF_NAMES" && printf "EXECUTIVE_STAFF_NAMES=%s\n" "$EXECUTIVE_STAFF_NAMES" >> .env.production || true
+            # Google Sheets API（サーバー／マスタ取得）。Amplify で「コンソールにだけある」のだと SSR で未設定になることがある。
+            - test -n "$GOOGLE_SPREADSHEET_ID" && printf "GOOGLE_SPREADSHEET_ID=%s\n" "$GOOGLE_SPREADSHEET_ID" >> .env.production || echo "WARN build env GOOGLE_SPREADSHEET_ID is empty"
+            - test -n "$GOOGLE_RESPONSES_SPREADSHEET_ID" && printf "GOOGLE_RESPONSES_SPREADSHEET_ID=%s\n" "$GOOGLE_RESPONSES_SPREADSHEET_ID" >> .env.production || true
+            - test -n "$GOOGLE_RESPONSES_SOREINE_SPREADSHEET_ID" && printf "GOOGLE_RESPONSES_SOREINE_SPREADSHEET_ID=%s\n" "$GOOGLE_RESPONSES_SOREINE_SPREADSHEET_ID" >> .env.production || true
+            - test -n "$GOOGLE_RESPONSES_MVBE_SPREADSHEET_ID" && printf "GOOGLE_RESPONSES_MVBE_SPREADSHEET_ID=%s\n" "$GOOGLE_RESPONSES_MVBE_SPREADSHEET_ID" >> .env.production || true
+            # サービスアカウント鍵 JSON（Amplify で改行無し・1行の JSON として登録することが多い）。
+            - test -n "$GOOGLE_SERVICE_ACCOUNT_JSON" && printf "GOOGLE_SERVICE_ACCOUNT_JSON=%s\n" "$GOOGLE_SERVICE_ACCOUNT_JSON" >> .env.production || echo "WARN build env GOOGLE_SERVICE_ACCOUNT_JSON is empty"
+            - test -n "$SHEET_MASTER_DEBUG" && printf "SHEET_MASTER_DEBUG=%s\n" "$SHEET_MASTER_DEBUG" >> .env.production || true
+            - test -n "$SHEET_ENROLLMENT" && printf "SHEET_ENROLLMENT=%s\n" "$SHEET_ENROLLMENT" >> .env.production || true
+            - test -n "$SHEET_RESPONSES_SOREINE" && printf "SHEET_RESPONSES_SOREINE=%s\n" "$SHEET_RESPONSES_SOREINE" >> .env.production || true
+            - test -n "$SHEET_RESPONSES_MVBE" && printf "SHEET_RESPONSES_MVBE=%s\n" "$SHEET_RESPONSES_MVBE" >> .env.production || true
+            - test -n "$SHEET_REGISTRATION" && printf "SHEET_REGISTRATION=%s\n" "$SHEET_REGISTRATION" >> .env.production || true
+            - test -n "$SHEET_MEMBER_DISCORD_MAP" && printf "SHEET_MEMBER_DISCORD_MAP=%s\n" "$SHEET_MEMBER_DISCORD_MAP" >> .env.production || true
+            - test -n "$MASTER_CACHE_SECONDS" && printf "MASTER_CACHE_SECONDS=%s\n" "$MASTER_CACHE_SECONDS" >> .env.production || true
+            # 任意: Discord／公開 URL／メール送信（未設定でも多くのアプリ機能は動く）
+            - test -n "$DISCORD_SOREINE_WEBHOOK_URL" && printf "DISCORD_SOREINE_WEBHOOK_URL=%s\n" "$DISCORD_SOREINE_WEBHOOK_URL" >> .env.production || true
+            - test -n "$DISCORD_BOT_TOKEN" && printf "DISCORD_BOT_TOKEN=%s\n" "$DISCORD_BOT_TOKEN" >> .env.production || true
+            - test -n "$DISCORD_GUILD_ID" && printf "DISCORD_GUILD_ID=%s\n" "$DISCORD_GUILD_ID" >> .env.production || true
+            - test -n "$NEXT_PUBLIC_LEVELA_LOGO_URL" && printf "NEXT_PUBLIC_LEVELA_LOGO_URL=%s\n" "$NEXT_PUBLIC_LEVELA_LOGO_URL" >> .env.production || true
+            - test -n "$NEXT_PUBLIC_USE_MOCK_MASTER" && printf "NEXT_PUBLIC_USE_MOCK_MASTER=%s\n" "$NEXT_PUBLIC_USE_MOCK_MASTER" >> .env.production || true
+            - test -n "$NEXT_PUBLIC_GOOGLE_FORM_REGISTER_URL" && printf "NEXT_PUBLIC_GOOGLE_FORM_REGISTER_URL=%s\n" "$NEXT_PUBLIC_GOOGLE_FORM_REGISTER_URL" >> .env.production || true
+            - test -n "$NEXT_PUBLIC_GOOGLE_FORM_RETIRE_URL" && printf "NEXT_PUBLIC_GOOGLE_FORM_RETIRE_URL=%s\n" "$NEXT_PUBLIC_GOOGLE_FORM_RETIRE_URL" >> .env.production || true
+            - test -n "$SMTP_HOST" && printf "SMTP_HOST=%s\n" "$SMTP_HOST" >> .env.production || true
+            - test -n "$SMTP_PORT" && printf "SMTP_PORT=%s\n" "$SMTP_PORT" >> .env.production || true
+            - test -n "$SMTP_USER" && printf "SMTP_USER=%s\n" "$SMTP_USER" >> .env.production || true
+            - test -n "$SMTP_PASSWORD" && printf "SMTP_PASSWORD=%s\n" "$SMTP_PASSWORD" >> .env.production || true
+            - test -n "$SMTP_SECURE" && printf "SMTP_SECURE=%s\n" "$SMTP_SECURE" >> .env.production || true
+            - test -n "$EMAIL_FROM" && printf "EMAIL_FROM=%s\n" "$EMAIL_FROM" >> .env.production || true
+            # Node API（signIn の拒否理由表示など）で参照する切り分け用。不要なら Amplify で未設定のまま。
             - test -n "$AUTH_SIGNIN_DEBUG" && printf "AUTH_SIGNIN_DEBUG=%s\n" "$AUTH_SIGNIN_DEBUG" >> .env.production || true
-            - test -n "$AUTH_SIGNIN_SKIP_STAFF_MATCH" && printf "AUTH_SIGNIN_SKIP_STAFF_MATCH=%s\n" "$AUTH_SIGNIN_SKIP_STAFF_MATCH" >> .env.production || true
             - npm run build
             - node scripts/pack-amplify-ssr.mjs
       artifacts:

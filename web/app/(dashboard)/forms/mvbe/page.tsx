@@ -1,3 +1,4 @@
+import { StaffIdMissingNotice } from "@/app/components/StaffIdMissingNotice";
 import { auth } from "@/auth";
 import { sheetsConfigured } from "@/lib/env";
 import { hasMvbeSubmissionThisCalendarMonthJst } from "@/lib/my-responses-data";
@@ -10,7 +11,7 @@ export default async function MvbePage() {
   const session = await auth();
   const staff = await getActiveStaff();
   if (!session?.user.staffId) {
-    return null;
+    return <StaffIdMissingNotice />;
   }
   const alreadySubmittedThisMonth =
     sheetsConfigured() &&
