@@ -12,7 +12,7 @@ applications:
         build:
           commands:
             - npm run build
-            - bash scripts/amplify-ssr-pack.sh
+            - node scripts/pack-amplify-ssr.mjs
       artifacts:
         baseDirectory: .next
         files:
