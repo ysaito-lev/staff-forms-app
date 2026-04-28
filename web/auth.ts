@@ -49,7 +49,7 @@ async function denySignIn(
  * Middleware は `auth.config` のみを参照すること。
  *
  * 拒否理由の切り分け: `AUTH_SIGNIN_DEBUG=1` のとき `console.warn` に加え、
- * Cookie 経由で `/login` に `reason` が付く（下記 middleware + pages.error）。
+ * マスタ氏名のみ切り分け: `AUTH_SIGNIN_SKIP_STAFF_MATCH=1` で signIn の突合のみスキップ（原因が分かったら必ず外す）。
  */
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -79,6 +79,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           allowedList: allowed.join(","),
         });
       }
+
+      /** 切り分け専用: マスタ照合で弾くかだけを試す。このまま運用しないこと。 */
+      if (
+        process.env.AUTH_SIGNIN_SKIP_STAFF_MATCH === "1" ||
+        process.env.AUTH_SIGNIN_SKIP_STAFF_MATCH?.toLowerCase() === "true"
+      ) {
+        console.warn(
+          "[auth] AUTH_SIGNIN_SKIP_STAFF_MATCH: signIn のマスタ氏名突合のみスキップ中。確認後、この環境変数を削除してください。"
+        );
+        signInDebug("skipped_staff_match_by_env");
+        return true;
+      }
+
       const { resolveStaffIdFromGoogleProfile } = await import(
         "@/lib/google-staff-resolve"
       );
