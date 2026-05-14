@@ -1,10 +1,8 @@
 import type { NextAuthConfig } from "next-auth";
-import Google from "next-auth/providers/google";
 
 /**
  * Middleware / Edge と API 側で共通の Auth.js 基底設定。
- * `googleapis` 等 Node 向け処理を含むコールバックは `auth.ts` で追記しないと
- * middleware の Edge バンドルへ引きずられる。
+ * プロバイダー本体は Node 側の `auth.ts` でCredentials を追加している（authorize が Dynamo に触れるため）。
  */
 
 function getAuthSecret(): string {
@@ -26,12 +24,6 @@ export const authConfig = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 7 },
   /** エラー時もデフォルトの /api/auth/error ではなくログイン画面へ（?error= と併用） */
   pages: { signIn: "/login", error: "/login" },
-  providers: [
-    Google({
-      clientId:
-        process.env.AUTH_GOOGLE_ID?.trim() ?? "missing-set-AUTH_GOOGLE_ID",
-      clientSecret:
-        process.env.AUTH_GOOGLE_SECRET?.trim() ?? "missing-set-AUTH_GOOGLE_SECRET",
-    }),
-  ],
+  /** 実体は `auth.ts` の Credentials。middleware 用の最小設定では空配列では型が通らないためダミーを置く。 */
+  providers: [],
 } satisfies NextAuthConfig;

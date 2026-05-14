@@ -8,18 +8,117 @@ import {
 import type { Staff } from "@/lib/staff-types";
 
 /**
- * MVBe 回答シート（Web 追記）— 16 列（A ～ P）
- * A–B: タイムスタンプ, 回答者 / C–D: Be better（氏名・理由）
- * E,G,I,K (4,6,8,10): 空
- * F,H,J,L (5,7,9,11): honest / proactive / challenging / authentic の**理由**
- * M–P (12–15): 同上 4 ブロックの**氏名**
+ * MVBe 回答シート: Web 追記は主に V2（13 列・末尾 `MVBE_V2`）。レガシー幅・旧列レイアウトの解釈もこのモジュールに集約。
  */
-export const MVBE_SHEET_COL_COUNT = 16;
-/** 旧サイト送信の幅広行（列1=職員ID, 2=氏名, 以降 各ブロック id/name/理由） */
 const MVBE_WIDE_COL_COUNT = 3 + MVBE_BLOCKS.length * 3;
 
-/** 管理者 CSV 等の列見出し（`buildMvbeSheetRow` の 16 列レイアウトと一致） */
-export const MVBE_EXPORT_COLUMN_HEADERS: readonly string[] = [
+/** MVBe 単票＋ポイント保存行の末尾マーカー（13列） */
+const MVBE_V2_MARKER = "MVBE_V2";
+const MVBE_V2_COL_COUNT = 13;
+
+/** MVBe V2 列インデックス（0始まり） */
+export const MVBE_V2_I = {
+  ts: 0,
+  respondentId: 1,
+  respondentName: 2,
+  nomineeId: 3,
+  nomineeName: 4,
+  value: 5,
+  reason: 6,
+  voterDeptMain: 7,
+  deptCountNd: 8,
+  nRef: 9,
+  weightApplied: 10,
+  pointsGranted: 11,
+  schema: 12,
+} as const;
+
+const MVBE_V2_EXPORT_HEADERS: readonly string[] = [
+  "タイムスタンプ",
+  "回答者スタッフID",
+  "回答者氏名",
+  "被評価者スタッフID",
+  "被評価者氏名",
+  "Value",
+  "理由",
+  "回答者メイン部署",
+  "係数算出時の部署人数",
+  "係数算出時の基準人数Nref",
+  "適用係数",
+  "付与ポイント",
+  "スキーマ",
+];
+
+export function isMvbeV2Row(row: string[]): boolean {
+  if (row.length < MVBE_V2_COL_COUNT) return false;
+  return cell(row[MVBE_V2_I.schema]).trim() === MVBE_V2_MARKER;
+}
+
+export function buildMvbeSheetRowV2(params: {
+  submittedAt: string;
+  respondent: Staff;
+  nominee: Staff;
+  valueLabel: string;
+  reason: string;
+  voterDeptMain: string;
+  deptCountNd: number;
+  nRef: number;
+  weightApplied: number;
+  pointsGranted: number;
+}): string[] {
+  const row = Array<string>(MVBE_V2_COL_COUNT).fill("");
+  const {
+    submittedAt,
+    respondent,
+    nominee,
+    valueLabel,
+    reason,
+    voterDeptMain,
+    deptCountNd,
+    nRef,
+    weightApplied,
+    pointsGranted,
+  } = params;
+  row[MVBE_V2_I.ts] = submittedAt;
+  row[MVBE_V2_I.respondentId] = respondent.id;
+  row[MVBE_V2_I.respondentName] = respondent.name;
+  row[MVBE_V2_I.nomineeId] = nominee.id;
+  row[MVBE_V2_I.nomineeName] = nominee.name;
+  row[MVBE_V2_I.value] = valueLabel;
+  row[MVBE_V2_I.reason] = reason.trim();
+  row[MVBE_V2_I.voterDeptMain] = voterDeptMain;
+  row[MVBE_V2_I.deptCountNd] = String(deptCountNd);
+  row[MVBE_V2_I.nRef] = String(nRef);
+  row[MVBE_V2_I.weightApplied] = String(weightApplied);
+  row[MVBE_V2_I.pointsGranted] = String(pointsGranted);
+  row[MVBE_V2_I.schema] = MVBE_V2_MARKER;
+  return row;
+}
+
+export type ParsedMvbeV2 = {
+  nomineeName: string;
+  nomineeId: string;
+  valueRaw: string;
+  reason: string;
+  voterDeptMain: string;
+  pointsGranted: number;
+};
+
+export function parseMvbeV2Row(row: string[]): ParsedMvbeV2 | null {
+  if (!isMvbeV2Row(row)) return null;
+  const pts = Number(cell(row[MVBE_V2_I.pointsGranted]).trim());
+  return {
+    nomineeName: cell(row[MVBE_V2_I.nomineeName]).trim(),
+    nomineeId: cell(row[MVBE_V2_I.nomineeId]).trim(),
+    valueRaw: cell(row[MVBE_V2_I.value]).trim(),
+    reason: cell(row[MVBE_V2_I.reason]).trim(),
+    voterDeptMain: cell(row[MVBE_V2_I.voterDeptMain]).trim(),
+    pointsGranted: Number.isFinite(pts) ? pts : 0,
+  };
+}
+
+/** 管理者 CSV 等の列見出し（旧 16 列レイアウトと一致） */
+const MVBE_EXPORT_COLUMN_HEADERS: readonly string[] = [
   "タイムスタンプ",
   "回答者",
   "Be better 対象者名",
@@ -51,6 +150,14 @@ function mvbeWideExportHeaders(): string[] {
 /** MVBe CSV 1 行目。列数はシート上の最大幅に合わせ、16 / 18 列系は意味のある見出しにする */
 export function buildMvbeCsvHeaderRow(maxC: number): string[] {
   if (maxC <= 0) return [];
+  if (maxC >= MVBE_V2_COL_COUNT && maxC < MVBE_WIDE_COL_COUNT) {
+    const h = [...MVBE_V2_EXPORT_HEADERS];
+    if (maxC <= h.length) return h.slice(0, maxC);
+    return [
+      ...h,
+      ...Array.from({ length: maxC - h.length }, (_, i) => `列${h.length + i + 1}`),
+    ];
+  }
   const standard = MVBE_EXPORT_COLUMN_HEADERS;
   if (maxC >= MVBE_WIDE_COL_COUNT) {
     const wide = mvbeWideExportHeaders();
@@ -67,10 +174,10 @@ export function buildMvbeCsvHeaderRow(maxC: number): string[] {
   ];
 }
 /** ソレイイネ用：タイムスタンプ・回答者名・賞賛…・value・具体的内容の 5 列 */
-export const SOREINE_SHEET_COL_COUNT = 5;
+const SOREINE_SHEET_COL_COUNT = 5;
 
 /** 列インデックス（0 始まり） */
-export const R = {
+const R = {
   ts: 0,
   respondent: 1,
   betterName: 2,
@@ -127,33 +234,6 @@ export function buildSoreineSheetRow(params: {
   row[SR.praised] = praised.name;
   row[SR.value] = value;
   row[SR.detail] = detail.trim();
-  return row;
-}
-
-export function buildMvbeSheetRow(params: {
-  submittedAt: string;
-  respondent: Staff;
-  blocks: Record<MvbeBlockKey, { staffName: string; reason: string }>;
-}): string[] {
-  const row = Array<string>(MVBE_SHEET_COL_COUNT).fill("");
-  const { submittedAt, respondent, blocks } = params;
-  const b = blocks;
-  row[0] = submittedAt;
-  row[1] = respondent.name;
-  row[2] = cell(b.better.staffName);
-  row[3] = cell(b.better.reason);
-  row[4] = "";
-  row[5] = cell(b.honest.reason);
-  row[6] = "";
-  row[7] = cell(b.proactive.reason);
-  row[8] = "";
-  row[9] = cell(b.challenging.reason);
-  row[10] = "";
-  row[11] = cell(b.authentic.reason);
-  row[12] = cell(b.honest.staffName);
-  row[13] = cell(b.proactive.staffName);
-  row[14] = cell(b.challenging.staffName);
-  row[15] = cell(b.authentic.staffName);
   return row;
 }
 
@@ -223,6 +303,7 @@ export function parseSoreineRowToDisplay(row: string[]): {
 export function parseMvbeBlocksForRanking(
   row: string[]
 ): Record<MvbeBlockKey, { staffName: string }> | null {
+  if (isMvbeV2Row(row)) return null;
   const parsed = parseMvbeRowToDisplay(row);
   if (!parsed) return null;
   const out = {} as Record<MvbeBlockKey, { staffName: string }>;
@@ -238,6 +319,7 @@ export function parseMvbeBlocksForRanking(
 export function parseMvbeRowToDisplay(
   row: string[]
 ): Record<MvbeBlockKey, { staffName: string; reason: string }> | null {
+  if (isMvbeV2Row(row)) return null;
   if (row.length < 12) return null;
   const out = {} as Record<MvbeBlockKey, { staffName: string; reason: string }>;
 
@@ -321,6 +403,7 @@ export function parseMvbeRowFullBlocks(
   MvbeBlockKey,
   { staffId: string; staffName: string; reason: string }
 > | null {
+  if (isMvbeV2Row(row)) return null;
   if (row.length >= MVBE_WIDE_COL_COUNT && isWideMvbeWithIdColumns(row)) {
     const out = {} as Record<
       MvbeBlockKey,

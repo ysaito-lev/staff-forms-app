@@ -4,10 +4,10 @@ import { isDataRowFirstCell } from "@/lib/admin-stats";
 import { isIsoInRange, normalizeSheetTimestamp } from "@/lib/date-utils";
 import {
   getEnv,
-  getMvbeSpreadsheetId,
   getSoreiineSpreadsheetId,
   sheetsConfigured,
 } from "@/lib/env";
+import { getMergedMvbeSheetRowsForRead } from "@/lib/mvbe-sheet-rows";
 import { getSheetRows } from "@/lib/sheets-read";
 import { buildMvbeCsvHeaderRow } from "@/lib/response-sheet-layout";
 
@@ -73,11 +73,13 @@ export async function GET(req: Request) {
   const endExclusive = new Date(endLastDay.getTime() + 864e5);
 
   const e = getEnv();
-  const tab =
-    form === "soreine" ? e.SHEET_RESPONSES_SOREINE : e.SHEET_RESPONSES_MVBE;
-  const ssid =
-    form === "soreine" ? getSoreiineSpreadsheetId() : getMvbeSpreadsheetId();
-  const rows = await getSheetRows(tab, ssid);
+  const rows =
+    form === "soreine"
+      ? await getSheetRows(
+          e.SHEET_RESPONSES_SOREINE,
+          getSoreiineSpreadsheetId()
+        )
+      : await getMergedMvbeSheetRowsForRead();
   const lines: string[] = [];
 
   if (form === "soreine") {

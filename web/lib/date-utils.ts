@@ -120,6 +120,16 @@ export function submissionInMvbeWindowJst(
   return t >= start && t < endExclusive;
 }
 
+/** リマインド文案用：現在のMVBe提出ウィンドウの説明（JST） */
+export function describeMvbeSubmissionWindowJst(anchor: Date = new Date()): string {
+  const { y, m, day } = ymdJst(anchor);
+  if (day <= 15) {
+    const pm = prevCalendarMonth(y, m);
+    return `${pm.y}年${pm.m}月16日〜${y}年${m}月15日（日本時間）`;
+  }
+  return `${y}年${m}月16日〜今日まで（日本時間）`;
+}
+
 /** 日時が指定した暦月（Asia/Tokyo）に含まれるか */
 export function inCalendarMonthJst(
   iso: string,
@@ -175,6 +185,12 @@ export function isIsoInRange(
 export function getCurrentYearMonthJst(): { year: number; month: number } {
   const a = ymdJst(new Date());
   return { year: a.y, month: a.m };
+}
+
+/** 強みレポート AI の「同一月」判定用キー（Asia/Tokyo 暦・`yyyy-mm`） */
+export function getCalendarMonthKeyJst(d: Date = new Date()): string {
+  const a = ymdJst(d);
+  return `${a.y.toString().padStart(4, "0")}-${pad2(a.m)}`;
 }
 
 /**

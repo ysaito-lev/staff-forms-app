@@ -2,12 +2,13 @@
 
 import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import { SITE_TITLE } from "@/lib/site-brand";
-import { SidebarBrandMark } from "@/app/components/SidebarBrandMark";
+import { STRENGTHS_REPORT_UI } from "@/lib/strengths-report-ui";
 import {
   Activity,
   BarChart3,
   ClipboardList,
   Home,
+  LineChart,
   Sparkles,
   Target,
   Trophy,
@@ -17,34 +18,39 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 
+/** ダークサイドバー上で識別しやすいよう、暖色でひと揃えしつつ階調を分ける */
 const ACCENT = {
-  teal: {
-    box: "from-teal-500/40 to-emerald-800/35",
-    icon: "text-teal-50",
+  home: {
+    box: "from-orange-400 via-orange-500 to-amber-600",
+    icon: "text-white",
   },
-  rose: {
-    box: "from-rose-500/40 to-amber-900/30",
-    icon: "text-rose-50",
+  soreine: {
+    box: "from-rose-400 via-orange-500 to-orange-700",
+    icon: "text-white",
   },
-  violet: {
-    box: "from-violet-500/45 to-fuchsia-900/35",
-    icon: "text-violet-50",
+  mvbe: {
+    box: "from-amber-400 via-orange-500 to-amber-700",
+    icon: "text-white",
   },
-  sky: {
-    box: "from-sky-500/40 to-blue-900/35",
-    icon: "text-sky-50",
+  myAnswers: {
+    box: "from-orange-300 via-amber-500 to-orange-600",
+    icon: "text-white",
   },
-  emerald: {
-    box: "from-emerald-500/40 to-teal-900/35",
-    icon: "text-emerald-50",
+  strengths: {
+    box: "from-orange-500 via-orange-600 to-red-900",
+    icon: "text-white",
   },
-  gold: {
-    box: "from-amber-500/50 to-yellow-700/35",
-    icon: "text-amber-50",
+  status: {
+    box: "from-amber-500 via-orange-500 to-orange-700",
+    icon: "text-white",
   },
-  orange: {
-    box: "from-orange-500/45 to-amber-900/40",
-    icon: "text-orange-50",
+  ranking: {
+    box: "from-yellow-400 via-amber-500 to-orange-600",
+    icon: "text-orange-950/95",
+  },
+  admin: {
+    box: "from-amber-900/95 via-orange-950 to-stone-950",
+    icon: "text-amber-100",
   },
 } as const;
 
@@ -58,18 +64,19 @@ type NavDef = {
 };
 
 const navMain: NavDef[] = [
-  { href: "/", label: "サイトトップ", Icon: Home, accent: "teal" },
-  { href: "/forms/soreine", label: SOREINE_TITLE, Icon: Target, accent: "rose" },
-  { href: "/forms/mvbe", label: MVBE_TITLE, Icon: Sparkles, accent: "violet" },
+  { href: "/", label: "サイトトップ", Icon: Home, accent: "home" },
+  { href: "/forms/soreine", label: SOREINE_TITLE, Icon: Target, accent: "soreine" },
+  { href: "/forms/mvbe", label: MVBE_TITLE, Icon: Sparkles, accent: "mvbe" },
 ];
 
 const navSelf: NavDef[] = [
-  { href: "/my-answers", label: "マイ回答・履歴", Icon: ClipboardList, accent: "sky" },
-  { href: "/status", label: "回答状況", Icon: Activity, accent: "emerald" },
+  { href: "/my-answers", label: "マイ回答・履歴", Icon: ClipboardList, accent: "myAnswers" },
+  { href: "/strengths-report", label: "強みレポート", Icon: LineChart, accent: "strengths" },
+  { href: "/status", label: "回答状況", Icon: Activity, accent: "status" },
 ];
 
 const navShared: NavDef[] = [
-  { href: "/ranking", label: "月間ランキング", Icon: Trophy, accent: "gold" },
+  { href: "/ranking", label: "月間ランキング", Icon: Trophy, accent: "ranking" },
 ];
 
 function navActive(pathname: string, href: string) {
@@ -91,7 +98,7 @@ function NavIconBox({
   return (
     <span
       className={[
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br md:h-[2.125rem] md:w-[2.125rem]",
         "shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
         a.box,
         active
@@ -102,7 +109,7 @@ function NavIconBox({
     >
       <Icon
         className={[
-          "h-4 w-4",
+          "h-4 w-4 md:h-[1.0625rem] md:w-[1.0625rem]",
           a.icon,
           active ? "drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]" : "",
         ].join(" ")}
@@ -128,7 +135,7 @@ export function DashboardShell({ children, user }: Props) {
   const linkClass = (href: string) => {
     const active = navActive(pathname, href);
     return [
-      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition",
+      "flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-[14px] leading-snug transition md:gap-2.5 md:px-2 md:py-2 md:text-[15px]",
       active
         ? "bg-slate-700 font-medium text-white"
         : "text-slate-300 hover:bg-slate-800/80 hover:text-white",
@@ -137,40 +144,41 @@ export function DashboardShell({ children, user }: Props) {
 
   const homeActive = navActive(pathname, "/");
   const brandRowClass = [
-    "group relative flex min-h-14 shrink-0 items-center gap-2 border-b border-slate-800/90 border-l-[3px] border-l-teal-500 py-1.5 pl-[5px] pr-3 text-left transition-colors md:min-h-16 md:pr-4",
+    "group relative flex min-h-0 shrink-0 items-center justify-center border-b border-slate-800/90 px-2.5 py-3.5 text-center transition-colors md:py-[1.15rem]",
     homeActive
       ? "bg-slate-700"
       : "bg-slate-900 hover:bg-slate-800/80",
   ].join(" ");
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100 md:h-screen md:max-h-screen md:flex-row md:overflow-hidden">
-      <aside className="shrink-0 border-b border-slate-800 bg-slate-900 text-slate-100 md:max-h-screen md:w-64 md:shrink-0 md:overflow-y-auto md:border-b-0 md:border-r">
+    <div
+      className="fixed inset-0 z-0 flex min-h-0 flex-col overflow-hidden md:flex-row"
+      style={{ backgroundColor: STRENGTHS_REPORT_UI.pageBg }}
+    >
+      <aside className="shrink-0 overflow-y-auto overflow-x-hidden border-b border-slate-800 bg-slate-900 text-slate-100 md:flex md:h-full md:w-[17rem] md:min-h-0 md:flex-col md:overflow-hidden md:border-b-0 md:border-r">
         <Link href="/" className={brandRowClass}>
           <span
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-teal-500/25 via-slate-600/40 to-slate-800/80"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-orange-500/25 via-slate-600/40 to-slate-800/80"
             aria-hidden
           />
-          <SidebarBrandMark />
-          <div className="min-w-0 flex-1 py-0.5">
-            <span
-              className={[
-                "block break-words text-pretty text-sm font-extrabold leading-snug tracking-tight antialiased md:text-[1.08rem] md:leading-snug",
-                homeActive
-                  ? "text-white"
-                  : "text-slate-100 group-hover:text-white",
-              ].join(" ")}
-            >
-              {SITE_TITLE}
-            </span>
-          </div>
+          <span
+            className={[
+              "relative z-[1] block w-full min-w-0 whitespace-nowrap text-[1.125rem] font-extrabold leading-tight tracking-tight antialiased md:text-[1.3rem]",
+              homeActive
+                ? "text-white"
+                : "text-slate-100 group-hover:text-white",
+            ].join(" ")}
+            title={SITE_TITLE}
+          >
+            {SITE_TITLE}
+          </span>
         </Link>
-        <nav className="space-y-6 p-3">
-          <div>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+        <nav className="flex flex-1 flex-col gap-4 px-2.5 py-4 md:min-h-0 md:gap-4 md:py-3">
+          <div className="min-w-0">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               メイン
             </p>
-            <ul className="space-y-0.5">
+            <ul className="flex flex-col gap-0.5">
               {navMain.map((item) => {
                 const active = navActive(pathname, item.href);
                 return (
@@ -184,11 +192,11 @@ export function DashboardShell({ children, user }: Props) {
               })}
             </ul>
           </div>
-          <div>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="min-w-0">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               自分の記録
             </p>
-            <ul className="space-y-0.5">
+            <ul className="flex flex-col gap-0.5">
               {navSelf.map((item) => {
                 const active = navActive(pathname, item.href);
                 return (
@@ -202,11 +210,11 @@ export function DashboardShell({ children, user }: Props) {
               })}
             </ul>
           </div>
-          <div>
-            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="min-w-0">
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               共有
             </p>
-            <ul className="space-y-0.5">
+            <ul className="flex flex-col gap-0.5">
               {navShared.map((item) => {
                 const active = navActive(pathname, item.href);
                 return (
@@ -221,16 +229,16 @@ export function DashboardShell({ children, user }: Props) {
             </ul>
           </div>
           {user.isAdmin && (
-            <div>
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-amber-500/90">
+            <div className="min-w-0">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-amber-500/90">
                 管理
               </p>
-              <ul className="space-y-0.5">
+              <ul className="flex flex-col gap-0.5">
                 <li>
                   <Link href="/admin" className={linkClass("/admin")}>
                     <NavIconBox
                       Icon={BarChart3}
-                      accent="orange"
+                      accent="admin"
                       active={navActive(pathname, "/admin")}
                     />
                     集計
@@ -243,7 +251,7 @@ export function DashboardShell({ children, user }: Props) {
       </aside>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-end border-b border-slate-200 bg-white px-4 text-slate-800 md:h-16">
+        <header className="flex h-14 shrink-0 items-center justify-end border-b border-orange-100/60 bg-white/95 px-4 text-slate-800 backdrop-blur-sm md:h-16">
           <div className="flex items-center gap-3">
             <span
               className="max-w-[min(12rem,40vw)] truncate text-xs text-slate-700 sm:max-w-[220px] sm:text-sm"
@@ -261,7 +269,10 @@ export function DashboardShell({ children, user }: Props) {
           </div>
         </header>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-slate-50">
+        <main
+          className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain"
+          style={{ backgroundColor: STRENGTHS_REPORT_UI.pageBg }}
+        >
           {children}
         </main>
       </div>

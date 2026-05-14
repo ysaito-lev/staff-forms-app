@@ -11,6 +11,7 @@ import {
 } from "@/lib/ranking-data";
 import { sheetsConfigured } from "@/lib/env";
 import { RankingMonthPicker } from "./RankingMonthPicker";
+import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +53,9 @@ function rankCardStyles(rank: number): {
   }
   return {
     frame:
-      "border-teal-200/60 bg-gradient-to-br from-white via-teal-50/30 to-cyan-50/20 shadow-[0_1px_0_0_rgba(45,212,191,0.1),0_8px_20px_-4px_rgba(15,118,110,0.08)] ring-1 ring-teal-100/60",
-    badge: "bg-gradient-to-br from-teal-200 to-teal-100 text-teal-900 ring-1 ring-teal-200/50 shadow-sm",
-    votePill: "bg-teal-100/80 text-teal-900 ring-1 ring-teal-200/50",
+      "border-orange-200/60 bg-gradient-to-br from-white via-orange-50/30 to-amber-50/20 shadow-[0_1px_0_0_rgba(251,146,60,0.12),0_8px_20px_-4px_rgba(194,65,12,0.08)] ring-1 ring-orange-100/60",
+    badge: "bg-gradient-to-br from-orange-200 to-orange-100 text-orange-900 ring-1 ring-orange-200/50 shadow-sm",
+    votePill: "bg-orange-100/80 text-orange-900 ring-1 ring-orange-200/50",
   };
 }
 
@@ -126,7 +127,10 @@ export default async function RankingPage({ searchParams }: Props) {
 
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-5xl">
+      <div
+        className="mx-auto max-w-5xl rounded-2xl p-4 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-6"
+        style={{ backgroundColor: UI.sectionCream }}
+      >
         <div className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-800">月間ランキング</h1>
@@ -159,7 +163,7 @@ export default async function RankingPage({ searchParams }: Props) {
                     key={b.key}
                     className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/90 shadow-sm"
                   >
-                    <div className="border-b border-teal-100 bg-teal-50/70 px-5 py-3">
+                    <div className="border-b border-orange-100 bg-orange-50/70 px-5 py-3">
                       <h3 className="text-base font-semibold text-slate-900">{b.heading}</h3>
                     </div>
                     <div className="p-4 sm:p-5">
@@ -189,8 +193,16 @@ export default async function RankingPage({ searchParams }: Props) {
                                   <span
                                     className={`inline-flex shrink-0 items-baseline gap-0.5 self-center rounded-full px-2 py-1 ${s.votePill}`}
                                   >
-                                    <span className="text-base font-bold tabular-nums leading-none sm:text-lg">{r.votes}</span>
-                                    <span className="text-xs font-semibold leading-none opacity-80">票</span>
+                                    <span className="text-base font-bold tabular-nums leading-none sm:text-lg">
+                                      {data.usesPoints
+                                        ? r.score.toLocaleString("ja-JP", {
+                                            maximumFractionDigits: 1,
+                                          })
+                                        : String(r.score)}
+                                    </span>
+                                    <span className="text-xs font-semibold leading-none opacity-80">
+                                      {data.usesPoints ? "pt" : "票"}
+                                    </span>
                                   </span>
                                 </div>
                                 <div className="relative mt-2.5 space-y-1.5 text-xs text-slate-600 sm:mt-2">

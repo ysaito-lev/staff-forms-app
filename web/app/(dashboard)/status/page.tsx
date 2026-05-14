@@ -2,14 +2,22 @@ import { auth } from "@/auth";
 import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import { loadMyResponses } from "@/lib/my-responses-data";
 import { inThisMonth, inThisWeek, submissionInMvbeWindowJst } from "@/lib/date-utils";
+import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 
 export default async function StatusPage() {
   const session = await auth();
   if (!session?.user?.staffId) {
     return (
       <div className="px-4 py-8">
-        <div className="mx-auto max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900">
-          職員 ID がセッションに含まれていません。ログアウトしてから再ログインしてください。
+        <div className="mx-auto max-w-2xl">
+          <div
+            className="rounded-2xl p-6 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45"
+            style={{ backgroundColor: UI.sectionCream }}
+          >
+            <div className="rounded-xl border border-amber-200 bg-white px-4 py-4 text-sm text-amber-900">
+              職員 ID がセッションに含まれていません。ログアウトしてから再ログインしてください。
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -35,7 +43,7 @@ export default async function StatusPage() {
       <td className="px-4 py-3 pr-2 font-medium text-slate-800">{label}</td>
       <td className="px-2 py-3">
         {week ? (
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-900">
+          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-900">
             回答済み
           </span>
         ) : (
@@ -44,7 +52,7 @@ export default async function StatusPage() {
       </td>
       <td className="px-2 py-3 pr-4">
         {month ? (
-          <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-900">
+          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-900">
             回答済み
           </span>
         ) : (
@@ -56,11 +64,14 @@ export default async function StatusPage() {
 
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-2xl">
+      <div
+        className="mx-auto max-w-2xl rounded-2xl p-6 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-8"
+        style={{ backgroundColor: UI.sectionCream }}
+      >
         <h1 className="text-xl font-bold text-slate-900">回答状況</h1>
         <p className="mt-2 text-sm text-slate-600">
           今週は「月曜 0:00」からの集計です。ソレイイネの「今月」は暦の月です。
-          <span className="block mt-1">
+          <span className="mt-1 block">
             MVBe の「今月」は現在の提出ウィンドウ（前半は前月16日〜今月15日、後半は当月16日〜本日まで）です。
           </span>
         </p>

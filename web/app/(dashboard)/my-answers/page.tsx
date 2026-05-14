@@ -9,6 +9,9 @@ import type {
   SoreineReceivedRow,
   SoreineResponseRow,
 } from "@/lib/my-responses-data";
+import Link from "next/link";
+import { LoadingWithMark } from "@/app/components/LoadingWithMark";
+import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 
 type Tab = "all" | "soreine" | "mvbe";
 type ViewMode = "sent" | "received";
@@ -91,14 +94,62 @@ export default function MyAnswersPage() {
     [receivedMvbe, tab, inRange]
   );
 
+  const mvbeReceivedByDept = useMemo(() => {
+    const m = new Map<string, { entries: number; points: number }>();
+    for (const r of receivedMvbeF) {
+      const dep = r.fromDepartment?.trim() || "（不明）";
+      const cur = m.get(dep) ?? { entries: 0, points: 0 };
+      cur.entries += 1;
+      cur.points += r.points;
+      m.set(dep, cur);
+    }
+    return [...m.entries()].sort(
+      (a, b) =>
+        b[1].points - a[1].points ||
+        b[1].entries - a[1].entries ||
+        a[0].localeCompare(b[0], "ja")
+    );
+  }, [receivedMvbeF]);
+
+  const mvbeReceivedUsesPoints = useMemo(
+    () => receivedMvbeF.some((r) => r.points !== 1),
+    [receivedMvbeF]
+  );
+
+  const soreineReceivedByDept = useMemo(() => {
+    const m = new Map<string, { entries: number }>();
+    for (const r of receivedSoreineF) {
+      const dep = r.fromDepartment?.trim() || "（不明）";
+      const cur = m.get(dep) ?? { entries: 0 };
+      cur.entries += 1;
+      m.set(dep, cur);
+    }
+    return [...m.entries()].sort(
+      (a, b) =>
+        b[1].entries - a[1].entries ||
+        a[0].localeCompare(b[0], "ja")
+    );
+  }, [receivedSoreineF]);
   return (
     <div className="px-4 py-8">
-      <div className="mx-auto max-w-3xl">
+      <div
+        className="mx-auto max-w-4xl rounded-2xl p-6 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-8"
+        style={{ backgroundColor: UI.sectionCream }}
+      >
         <h1 className="text-xl font-bold text-slate-900">マイ回答・履歴</h1>
         <p className="mt-2 text-sm text-slate-600">
           {view === "sent"
             ? "あなたが回答者として送信した内容。"
-            : "他の回答者があなたに向けて送った賞賛のコメント。"}
+            : (
+                <>
+                  他の回答者があなたに向けて送った賞賛のコメント。MVBe とソレイイネ!! の届きでは、期間を絞ったうえで回答者の所属部署ごとの集計も表示されます（マスタ照会で推定）。
+                  <span className="mt-1 block">
+                    <Link href="/strengths-report" className="font-medium text-orange-700 hover:text-orange-900 hover:underline">
+                      届いたコメント全体の AI 分析は「強みレポート」へ
+                    </Link>
+                  </span>
+                </>
+              )}
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -107,7 +158,7 @@ export default function MyAnswersPage() {
             onClick={() => setView("sent")}
             className={
               view === "sent"
-                ? "rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white"
+                ? "rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white"
                 : "rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             }
           >
@@ -118,7 +169,7 @@ export default function MyAnswersPage() {
             onClick={() => setView("received")}
             className={
               view === "received"
-                ? "rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white"
+                ? "rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white"
                 : "rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             }
           >
@@ -176,7 +227,12 @@ export default function MyAnswersPage() {
         )}
 
         {loading ? (
-          <p className="mt-8 text-center text-slate-500">読み込み中…</p>
+          <div className="mt-8">
+            <LoadingWithMark
+              title="読み込み中です…"
+              description="マイ回答と履歴を読み込んでいます。"
+            />
+          </div>
         ) : view === "sent" ? (
           <div className="mt-8 space-y-8">
             {tab !== "mvbe" && (
@@ -232,8 +288,12 @@ export default function MyAnswersPage() {
                           {MVBE_BLOCKS.map((b) => {
                             const bl = r.blocks[b.key];
                             if (!bl) return null;
+                            const has =
+                              (bl.staffName ?? "").trim() !== "" ||
+                              (bl.reason ?? "").trim() !== "";
+                            if (!has) return null;
                             return (
-                              <div key={b.key} className="border-l-2 border-teal-200 pl-3">
+                              <div key={b.key} className="border-l-2 border-orange-200 pl-3">
                                 <p className="font-medium text-slate-800">{b.heading}</p>
                                 <p className="mt-1">
                                   選んだ人：<span className="font-medium">{bl.staffName}</span>
@@ -260,6 +320,27 @@ export default function MyAnswersPage() {
                 {receivedSoreineF.length === 0 ? (
                   <p className="mt-2 text-sm text-slate-500">該当するコメントがありません。</p>
                 ) : (
+                  <>
+                    {soreineReceivedByDept.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm">
+                        <h3 className="font-semibold text-slate-800">
+                          部署別の内訳（届いたソレイイネ!!）
+                        </h3>
+                        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {soreineReceivedByDept.map(([dep, agg]) => (
+                            <li
+                              key={dep}
+                              className="flex justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm"
+                            >
+                              <span className="font-medium text-slate-800">{dep}</span>
+                              <span className="tabular-nums text-slate-600">
+                                {agg.entries} 件
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   <ul className="mt-3 space-y-4">
                     {receivedSoreineF.map((r, i) => (
                       <li
@@ -272,6 +353,8 @@ export default function MyAnswersPage() {
                         <p className="mt-2">
                           <span className="text-slate-500">回答者：</span>
                           <span className="font-medium">{r.fromRespondentName}</span>
+                          <span className="ml-2 text-slate-500">／ 所属：</span>
+                          <span className="font-medium">{r.fromDepartment}</span>
                         </p>
                         <p className="mt-1">
                           <span className="text-slate-500">Value：</span>
@@ -284,6 +367,7 @@ export default function MyAnswersPage() {
                       </li>
                     ))}
                   </ul>
+                  </>
                 )}
               </section>
             )}
@@ -294,7 +378,40 @@ export default function MyAnswersPage() {
                 {receivedMvbeF.length === 0 ? (
                   <p className="mt-2 text-sm text-slate-500">該当するコメントがありません。</p>
                 ) : (
-                  <ul className="mt-3 space-y-4">
+                  <>
+                    {mvbeReceivedByDept.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-sm">
+                        <h3 className="font-semibold text-slate-800">部署別の内訳（届いたMVBe）</h3>
+                        <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+                          {mvbeReceivedByDept.map(([dep, agg]) => (
+                            <li
+                              key={dep}
+                              className="flex justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm"
+                            >
+                              <span className="font-medium text-slate-800">{dep}</span>
+                              <span className="tabular-nums text-slate-600">
+                                {mvbeReceivedUsesPoints ? (
+                                  <>
+                                    {agg.points.toLocaleString("ja-JP", {
+                                      maximumFractionDigits: 1,
+                                    })}
+                                    pt
+                                    <span className="ml-2 text-xs text-slate-400">
+                                      （{agg.entries}件）
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    {agg.entries} 票
+                                  </>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <ul className="mt-3 space-y-4">
                     {receivedMvbeF.map((r, i) => (
                       <li
                         key={`${r.submittedAt}-${i}-${r.blockKey}`}
@@ -306,10 +423,23 @@ export default function MyAnswersPage() {
                         <p className="mt-2">
                           <span className="text-slate-500">回答者：</span>
                           <span className="font-medium">{r.fromRespondentName}</span>
+                          <span className="ml-2 text-slate-500">／ 所属：</span>
+                          <span className="font-medium">{r.fromDepartment}</span>
                         </p>
                         <p className="mt-1">
                           <span className="text-slate-500">ブロック：</span>
                           {r.blockHeading}
+                          {mvbeReceivedUsesPoints && (
+                            <span className="ml-2 text-slate-500">
+                              ／ 加重：
+                              <span className="font-medium text-slate-800">
+                                {r.points.toLocaleString("ja-JP", {
+                                  maximumFractionDigits: 1,
+                                })}
+                                pt
+                              </span>
+                            </span>
+                          )}
                         </p>
                         <p className="mt-2 whitespace-pre-wrap text-slate-800">
                           <span className="text-slate-500">理由：</span>
@@ -318,6 +448,7 @@ export default function MyAnswersPage() {
                       </li>
                     ))}
                   </ul>
+                  </>
                 )}
               </section>
             )}

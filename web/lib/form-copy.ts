@@ -57,8 +57,6 @@ export function normalizeSoreineValueCell(
 
 export const MVBE_TITLE = "MVBe";
 
-/** マスタの staff id と衝突しない sentinel（API・クライアント共通） */
-export const MVBE_NO_NOMINEE_ID = "__mvbe_no_nominee__";
 export const MVBE_NO_NOMINEE_LABEL = "該当者なし";
 
 /** 月間ランキングに票として加算しない「該当なし」表記（氏名欄の文字列を nameKey 正規化して照合） */
@@ -68,8 +66,12 @@ export const MVBE_NO_NOMINEE_LABELS_EXCLUDED_IN_RANKING = [
 ] as const;
 
 export const MVBE_INTRO = `今月の MVBe を決めるためのアンケートです。
-5つの「Be」ごとに、体現していたメンバーを1名ずつ選んでください。同一月（日本時間）の回答はお一人様1回までです。
+**最も Value を体現したメンバーは誰か**、**どの Value か**、**理由**を1セットでお答えください。同一提出期間（日本時間）の回答はお一人様1回までです。
 ※幹部は選出の対象外です`;
+
+export const MVBE_LABEL_NOMINEE = "最も Value を体現したメンバーは？";
+export const MVBE_LABEL_VALUE = "どの Value を最も体現していたと感じましたか？";
+export const MVBE_LABEL_REASON = "理由（具体的に）";
 
 export const MVBE_LABEL_RESPONDENT = "回答者";
 
@@ -112,3 +114,10 @@ export const MVBE_BLOCKS = [
 ] as const;
 
 export type MvbeBlockKey = (typeof MVBE_BLOCKS)[number]["key"];
+
+/** SOREINE_VALUES と MVBE_BLOCKS は同一順序 */
+export function soreineValueToMvbeBlockKey(v: SoreineValue): MvbeBlockKey {
+  const i = (SOREINE_VALUES as readonly string[]).indexOf(v);
+  const b = MVBE_BLOCKS[i];
+  return (b?.key ?? "better") as MvbeBlockKey;
+}

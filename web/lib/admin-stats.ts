@@ -12,15 +12,17 @@ import { getActiveStaff } from "@/lib/master";
 import { addCalendarMonths, formatYearMonthParam } from "@/lib/ranking-data";
 import { nameKeyForMatch } from "@/lib/person-name-match";
 import {
+  isMvbeV2Row,
   isWideMvbeWithIdColumns,
+  MVBE_V2_I,
   parseSoreineRowToDisplay,
 } from "@/lib/response-sheet-layout";
 import {
   getEnv,
-  getMvbeSpreadsheetId,
   getSoreiineSpreadsheetId,
   sheetsConfigured,
 } from "@/lib/env";
+import { getMergedMvbeSheetRowsForRead } from "@/lib/mvbe-sheet-rows";
 import { getSheetRows } from "@/lib/sheets-read";
 import { mainDepartment } from "@/lib/staff-types";
 import type { Staff } from "@/lib/staff-types";
@@ -96,6 +98,12 @@ function soreineRespondentCells(row: string[]): string[] {
 }
 
 function mvbeRespondentCells(row: string[]): string[] {
+  if (isMvbeV2Row(row)) {
+    return [
+      String(row[MVBE_V2_I.respondentId] ?? "").trim(),
+      String(row[MVBE_V2_I.respondentName] ?? "").trim(),
+    ].filter(Boolean);
+  }
   if (row.length >= 12 && isWideMvbeWithIdColumns(row)) {
     return [String(row[1] ?? "").trim(), String(row[2] ?? "").trim()].filter(
       Boolean
@@ -109,15 +117,15 @@ function ratePercent(unique: number, eligible: number): number | null {
   return Math.min(100, Math.round((unique / eligible) * 1000) / 10);
 }
 
-export type CountSnapshot = {
+type CountSnapshot = {
   totalRows: number;
   uniqueRespondents: number;
   responseRatePercent: number | null;
 };
 
-export type SoreineValueCount = { valueLabel: string; count: number };
-export type WeekCount = { weekStartLabel: string; count: number };
-export type DeptCount = { department: string; countRows: number; unique: number };
+type SoreineValueCount = { valueLabel: string; count: number };
+type WeekCount = { weekStartLabel: string; count: number };
+type DeptCount = { department: string; countRows: number; unique: number };
 
 export type AdminStatsBundle = {
   year: number;
@@ -233,7 +241,7 @@ export async function loadAdminStatsForMonth(
 
   const [soreineRows, mvbeRows] = await Promise.all([
     getSheetRows(e.SHEET_RESPONSES_SOREINE, getSoreiineSpreadsheetId()),
-    getSheetRows(e.SHEET_RESPONSES_MVBE, getMvbeSpreadsheetId()),
+    getMergedMvbeSheetRowsForRead(),
   ]);
 
   for (const row of soreineRows) {
@@ -343,17 +351,6 @@ export async function loadAdminStatsForMonth(
   };
 }
 
-export function pctDelta(
-  current: number,
-  previous: number
-): { diff: number; percent: number | null } {
-  if (previous === 0) {
-    return { diff: current - previous, percent: null };
-  }
-  const p = ((current - previous) / previous) * 100;
-  return { diff: current - previous, percent: Math.round(p * 10) / 10 };
-}
-
 /** 今週のソレイイネ未提出・MVBe 未提出（現在の提出ウィンドウ基準・在籍者ベース） */
 export async function loadNonResponders(): Promise<NonResponders | null> {
   if (!sheetsConfigured()) return null;
@@ -361,7 +358,7 @@ export async function loadNonResponders(): Promise<NonResponders | null> {
   const [staff, soreineRows, mvbeRows] = await Promise.all([
     getActiveStaff(),
     getSheetRows(e.SHEET_RESPONSES_SOREINE, getSoreiineSpreadsheetId()),
-    getSheetRows(e.SHEET_RESPONSES_MVBE, getMvbeSpreadsheetId()),
+    getMergedMvbeSheetRowsForRead(),
   ]);
 
   const weekAnswered = new Set<string>();
@@ -383,7 +380,11 @@ export async function loadNonResponders(): Promise<NonResponders | null> {
   }
 
   function mapStaff(s: Staff) {
-    return { id: s.id, name: s.name, department: s.department };
+    return {
+      id: s.id,
+      name: s.name,
+      department: mainDepartment(s.department),
+    };
   }
   return {
     soreineNotThisWeek: staff

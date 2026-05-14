@@ -21,7 +21,13 @@ const envSchema = z.object({
   SHEET_ENROLLMENT: z.string().default("在籍管理マスタ"),
   /** Google フォーム連携の「フォームの回答 1」等（Code.gs の対象シート名と一致させる） */
   SHEET_RESPONSES_SOREINE: z.string().default("フォームの回答 1"),
-  SHEET_RESPONSES_MVBE: z.string().default("フォームの回答 1"),
+  /** MVBe 回答シート（`GOOGLE_RESPONSES_MVBE_SPREADSHEET_ID` ブック内・追記および主たる読み取り） */
+  SHEET_RESPONSES_MVBE: z.string().default("フォーム回答_202605以降"),
+  /**
+   * 同一ブック内の旧 MVBe タブ（任意）。未設定時は `SHEET_RESPONSES_MVBE` のみ。
+   * 読み取り（ランキング・マイ回答等）で主タブと結合する。追記はしない。
+   */
+  SHEET_RESPONSES_MVBE_LEGACY: z.string().optional(),
   /** （レガシー）rogin タブ名。アプリのログイン申請追記は廃止。スプレッドシート上の表は他用途で利用可。 */
   SHEET_REGISTRATION: z.string().default("rogin"),
   /** Discord 表示名 / フォーム上の名 / ユーザーID（Code.gs のメンバー対応表） */
@@ -54,9 +60,51 @@ const envSchema = z.object({
    * 例: `example.com,other.co.jp`
    */
   AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS: z.string().optional(),
+  /**
+   * Google `sub` ↔ 職員 `staffId` の紐づけ（オンデマンドテーブル。パーティションキー `pk` String）。
+   * 未設定時は登録 API は 503。JWT は `AUTH_STAFF_LINK_FALLBACK_GOOGLE` のときのみマスタ自動突合を試す。
+   */
+  DYNAMODB_USER_STAFF_TABLE: z.string().optional(),
+  /** 未設定時は `AWS_REGION` または ap-northeast-1 */
+  DYNAMODB_REGION: z.string().optional(),
+  /**
+   * 移行用: Dynamo に行が無いとき、従来どおり Google プロフィールでマスタ突合して staffId を埋める。
+   * 本番で Dynamo 運用が安定したら 1/true を外す。
+   */
+  AUTH_STAFF_LINK_FALLBACK_GOOGLE: boolish,
   /** ロゴのフォールバック URL（`public/levela-logo.png` が無い・読めないとき） */
   NEXT_PUBLIC_LEVELA_LOGO_URL: z.string().optional(),
   NEXT_PUBLIC_USE_MOCK_MASTER: boolish,
+  /**
+   * MVBe 非最大部署の係数上限（既定 3）。人数階層ごとに [1.5, この値] を等間隔で割り当てる。
+   * 実質無上限に近くしたいときは `999` など大きな値を指定。
+   */
+  MVBE_DEPT_WEIGHT_MAX: z.string().default("3"),
+  /** アプリの公開オリジン（リマインドのフォームURL・OAuth callback 等）。例: https://example.com */
+  NEXT_PUBLIC_APP_ORIGIN: z.string().optional(),
+  /** MVBe 未提出リマインド用 Discord Incoming Webhook */
+  DISCORD_MVBE_REMINDER_WEBHOOK_URL: z.string().optional(),
+  /**
+   * Webhook 投稿先のスレッド ID（任意）。未設定で本文指定もないときは Webhook の親チャンネルへ投稿。
+   * Discord API: Execute Webhook に `thread_id` クエリを付与する形。
+   */
+  DISCORD_MVBE_REMINDER_THREAD_ID: z.string().optional(),
+  /** Cron / 手動以外からリマインド API を叩くときの共有シークレット */
+  MVBE_REMINDER_CRON_SECRET: z.string().optional(),
+  /**
+   * 一時確認用: 1 / true のとき、`MVBE_REMINDER_DISCORD_TEST_MESSAGE`（未指定なら `test`）のみを
+   * 1 回 Webhook 送信する。メンション・未提出者集計・本文テンプレは使わない。本番前に必ず外す。
+   */
+  MVBE_REMINDER_DISCORD_TEST_ONLY: boolish,
+  /** `MVBE_REMINDER_DISCORD_TEST_ONLY` 時の本文（空なら `test`） */
+  MVBE_REMINDER_DISCORD_TEST_MESSAGE: z.string().optional(),
+  /** シートが読めないときのリマインド文案（プレースホルダ対応） */
+  MVBE_REMINDER_TEMPLATE: z.string().optional(),
+  /** マスタ `GOOGLE_SPREADSHEET_ID` 内のテンプレート用シート名 */
+  SHEET_MVBE_REMINDER_TEMPLATE: z.string().default("MVBeリマインド"),
+  /** テンプレート本文セル（A1 記法） */
+  SHEET_MVBE_REMINDER_TEMPLATE_CELL: z.string().default("A1"),
+
   /** （将来用）メール送信用 SMTP。現状アプリ未使用。 */
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().min(1).max(65535).default(587),
@@ -66,6 +114,14 @@ const envSchema = z.object({
   SMTP_SECURE: boolish,
   /** 送信元 */
   EMAIL_FROM: z.string().optional(),
+
+  /** Google AI (Gemini) — 届いたコメントの強み分析 */
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.0-flash"),
+  /** 強みレポート AI キャッシュ（パーティション staffId String、ソート sk String。現状 sk は STRENGTHS#ALL 固定） */
+  DYNAMODB_STRENGTHS_SNAPSHOT_TABLE: z.string().optional(),
+  /** Cron / 手動以外から強みスナップショット一括生成 API を叩くときの共有シークレット */
+  STRENGTHS_CRON_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -123,13 +179,22 @@ export function mockMasterEnabled(): boolean {
   return false;
 }
 
-export function smtpConfigured(): boolean {
-  const e = getEnv();
-  return Boolean(
-    e.SMTP_HOST?.trim() &&
-      e.SMTP_USER?.trim() &&
-      e.SMTP_PASSWORD &&
-      e.SMTP_PASSWORD.length > 0 &&
-      e.EMAIL_FROM?.trim()
-  );
+export function userStaffLinkTableConfigured(): boolean {
+  return Boolean(getEnv().DYNAMODB_USER_STAFF_TABLE?.trim());
+}
+
+export function dynamoDbRegion(): string {
+  const r = getEnv().DYNAMODB_REGION?.trim();
+  if (r) return r;
+  const aws = process.env.AWS_REGION?.trim();
+  if (aws) return aws;
+  return "ap-northeast-1";
+}
+
+export function geminiConfigured(): boolean {
+  return Boolean(getEnv().GEMINI_API_KEY?.trim());
+}
+
+export function strengthsSnapshotTableConfigured(): boolean {
+  return Boolean(getEnv().DYNAMODB_STRENGTHS_SNAPSHOT_TABLE?.trim());
 }

@@ -11,6 +11,9 @@ export default async function DashboardGroupLayout({
   if (!session?.user) {
     redirect("/login");
   }
+  if (!session.user.staffId?.trim()) {
+    redirect("/complete-profile");
+  }
 
   return (
     <DashboardShell

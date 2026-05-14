@@ -21,8 +21,8 @@ applications:
             # 未埋め込みだと clientId が missing-set-AUTH_GOOGLE_ID のままになり Google が invalid_client を返す。
             - test -n "$AUTH_GOOGLE_ID" && printf "AUTH_GOOGLE_ID=%s\n" "$AUTH_GOOGLE_ID" >> .env.production || echo "WARN build env AUTH_GOOGLE_ID is empty"
             - test -n "$AUTH_GOOGLE_SECRET" && printf "AUTH_GOOGLE_SECRET=%s\n" "$AUTH_GOOGLE_SECRET" >> .env.production || echo "WARN build env AUTH_GOOGLE_SECRET is empty"
-            # signIn（Node）でも参照される。ビルドに含めないと空扱いで allowed_domains_missing になる。
-            - test -n "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" && printf "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS=%s\n" "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" >> .env.production || echo "WARN build env AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS is empty"
+            # 職場ドメイン制限を使う場合のみ。空なら全ドメインの Google アカウントを許可（メール確認は signIn で従来どおり）
+            - test -n "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" && printf "AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS=%s\n" "$AUTH_GOOGLE_ALLOWED_HOSTED_DOMAINS" >> .env.production || true
             # Node API（session / signIn で参照）。ローカルの .env では効くが、Amplify だけ未埋め込みになることを防ぐ。
             - test -n "$ADMIN_NAMES" && printf "ADMIN_NAMES=%s\n" "$ADMIN_NAMES" >> .env.production || true
             - test -n "$EXECUTIVE_STAFF_NAMES" && printf "EXECUTIVE_STAFF_NAMES=%s\n" "$EXECUTIVE_STAFF_NAMES" >> .env.production || true
@@ -56,6 +56,14 @@ applications:
             - test -n "$EMAIL_FROM" && printf "EMAIL_FROM=%s\n" "$EMAIL_FROM" >> .env.production || true
             # Node API（signIn の拒否理由表示など）で参照する切り分け用。不要なら Amplify で未設定のまま。
             - test -n "$AUTH_SIGNIN_DEBUG" && printf "AUTH_SIGNIN_DEBUG=%s\n" "$AUTH_SIGNIN_DEBUG" >> .env.production || true
+            # DynamoDB: Google sub ↔ staffId（パーティションキー pk String のテーブル名。Amplify SSR ロールに権限を付与）
+            - test -n "$DYNAMODB_USER_STAFF_TABLE" && printf "DYNAMODB_USER_STAFF_TABLE=%s\n" "$DYNAMODB_USER_STAFF_TABLE" >> .env.production || echo "WARN build env DYNAMODB_USER_STAFF_TABLE is empty"
+            - test -n "$DYNAMODB_REGION" && printf "DYNAMODB_REGION=%s\n" "$DYNAMODB_REGION" >> .env.production || true
+            - test -n "$AUTH_STAFF_LINK_FALLBACK_GOOGLE" && printf "AUTH_STAFF_LINK_FALLBACK_GOOGLE=%s\n" "$AUTH_STAFF_LINK_FALLBACK_GOOGLE" >> .env.production || true
+            - test -n "$GEMINI_API_KEY" && printf "GEMINI_API_KEY=%s\n" "$GEMINI_API_KEY" >> .env.production || true
+            - test -n "$GEMINI_MODEL" && printf "GEMINI_MODEL=%s\n" "$GEMINI_MODEL" >> .env.production || true
+            - test -n "$DYNAMODB_STRENGTHS_SNAPSHOT_TABLE" && printf "DYNAMODB_STRENGTHS_SNAPSHOT_TABLE=%s\n" "$DYNAMODB_STRENGTHS_SNAPSHOT_TABLE" >> .env.production || echo "WARN build env DYNAMODB_STRENGTHS_SNAPSHOT_TABLE is empty (no strengths snapshot DynamoDB cache)"
+            - test -n "$STRENGTHS_CRON_SECRET" && printf "STRENGTHS_CRON_SECRET=%s\n" "$STRENGTHS_CRON_SECRET" >> .env.production || true
             - npm run build
             - node scripts/pack-amplify-ssr.mjs
       artifacts:

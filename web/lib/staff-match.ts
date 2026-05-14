@@ -1,7 +1,7 @@
 import type { Staff } from "@/lib/staff-types";
 
 /** 姓名のスペース（半角・全角・その他の空白）を除いた比較用キー */
-export function normalizeStaffNameKey(s: string): string {
+function normalizeStaffNameKey(s: string): string {
   return s.normalize("NFKC").trim().replace(/\s+/gu, "");
 }
 

@@ -130,8 +130,9 @@ async function searchDiscordMember(
 /**
  * Code.gs `findDiscordId` 相当
  * - `members` に API 解決分を追記する（GAS の挙動に合わせる）
+ * - ソレイイネ通知・MVBe リマインドなど共通利用
  */
-async function findDiscordId(
+export async function resolveDiscordIdFromMemberMap(
   name: string,
   members: MemberMapRow[],
   botToken: string | undefined,
@@ -196,7 +197,7 @@ export async function notifySoreineSubmissionToDiscord(params: {
   const members = await loadMemberDiscordMap();
   let discordUserId: string | null = null;
   try {
-    discordUserId = await findDiscordId(
+    discordUserId = await resolveDiscordIdFromMemberMap(
       params.admiredPerson,
       members,
       e.DISCORD_BOT_TOKEN?.trim(),

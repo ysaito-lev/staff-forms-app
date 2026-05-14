@@ -4,30 +4,22 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Staff } from "@/lib/staff-types";
 import {
-  MVBE_BLOCKS,
   MVBE_INTRO,
+  MVBE_LABEL_NOMINEE,
+  MVBE_LABEL_REASON,
   MVBE_LABEL_RESPONDENT,
-  MVBE_NO_NOMINEE_ID,
-  MVBE_NO_NOMINEE_LABEL,
+  MVBE_LABEL_VALUE,
   MVBE_TITLE,
+  PLACEHOLDER_SELECT,
   PLACEHOLDER_TEXT,
+  SOREINE_VALUES,
 } from "@/lib/form-copy";
-import type { MvbeBlockKey } from "@/lib/form-copy";
+import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 import { IntroText } from "@/app/components/IntroText";
 import { StaffPicker } from "@/app/components/StaffPicker";
 import { nameKeyForMatch } from "@/lib/person-name-match";
 
-type BlockState = { staffId: string | null; reason: string };
-
 type FieldErrors = Record<string, string>;
-
-const emptyBlocks = (): Record<MvbeBlockKey, BlockState> => ({
-  better: { staffId: null, reason: "" },
-  honest: { staffId: null, reason: "" },
-  proactive: { staffId: null, reason: "" },
-  challenging: { staffId: null, reason: "" },
-  authentic: { staffId: null, reason: "" },
-});
 
 export function MvbeForm({
   initialStaff,
@@ -40,7 +32,9 @@ export function MvbeForm({
   alreadySubmittedThisMonth?: boolean;
 }) {
   const [respondentId, setRespondentId] = useState<string | null>(lockedRespondentId);
-  const [blocks, setBlocks] = useState(emptyBlocks);
+  const [nomineeId, setNomineeId] = useState<string | null>(null);
+  const [value, setValue] = useState<string>("");
+  const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -49,54 +43,35 @@ export function MvbeForm({
   }, [lockedRespondentId]);
 
   useEffect(() => {
-    if (!lockedRespondentId) return;
+    if (!lockedRespondentId || !nomineeId) return;
     const self = initialStaff.find((s) => s.id === lockedRespondentId);
-    if (!self) return;
-    const nk = nameKeyForMatch(self.name);
-    setBlocks((prev) => {
-      let touched = false;
-      const next = { ...prev };
-      for (const b of MVBE_BLOCKS) {
-        const sid = prev[b.key].staffId;
-        if (!sid || sid === MVBE_NO_NOMINEE_ID) continue;
-        const st = initialStaff.find((s) => s.id === sid);
-        if (st && nameKeyForMatch(st.name) === nk) {
-          next[b.key] = { ...prev[b.key], staffId: null };
-          touched = true;
-        }
-      }
-      return touched ? next : prev;
-    });
-  }, [initialStaff, lockedRespondentId]);
+    const nom = initialStaff.find((s) => s.id === nomineeId);
+    if (!self || !nom) return;
+    if (nameKeyForMatch(self.name) === nameKeyForMatch(nom.name)) {
+      setNomineeId(null);
+    }
+  }, [initialStaff, lockedRespondentId, nomineeId]);
 
   const refs = {
     respondent: useRef<HTMLDivElement>(null),
-    better: useRef<HTMLDivElement>(null),
-    honest: useRef<HTMLDivElement>(null),
-    proactive: useRef<HTMLDivElement>(null),
-    challenging: useRef<HTMLDivElement>(null),
-    authentic: useRef<HTMLDivElement>(null),
+    nominee: useRef<HTMLDivElement>(null),
+    value: useRef<HTMLDivElement>(null),
+    reason: useRef<HTMLDivElement>(null),
   };
 
   const completed = useMemo(() => {
     let n = 0;
     if (respondentId) n += 1;
-    for (const b of MVBE_BLOCKS) {
-      const st = blocks[b.key];
-      if (st.staffId === MVBE_NO_NOMINEE_ID) n += 1;
-      else if (st.staffId && st.reason.trim()) n += 1;
-    }
+    if (nomineeId) n += 1;
+    if (value.trim()) n += 1;
+    if (reason.trim()) n += 1;
     return n;
-  }, [respondentId, blocks]);
+  }, [respondentId, nomineeId, value, reason]);
 
-  const totalSteps = 1 + MVBE_BLOCKS.length;
+  const totalSteps = 4;
 
   const scrollTo = (el: HTMLElement | null) => {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
-
-  const setBlock = (key: MvbeBlockKey, patch: Partial<BlockState>) => {
-    setBlocks((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   };
 
   const validate = (): { errs: FieldErrors; firstKey: keyof typeof refs | null } => {
@@ -104,36 +79,27 @@ export function MvbeForm({
     if (!respondentId) errs.respondent = "必須です";
     let firstKey: keyof typeof refs | null = errs.respondent ? "respondent" : null;
 
-    const self = respondentId
-      ? initialStaff.find((s) => s.id === respondentId)
-      : undefined;
-    const selfNk = self ? nameKeyForMatch(self.name) : null;
+    if (!nomineeId) {
+      errs.nominee = "必須です";
+      if (!firstKey) firstKey = "nominee";
+    } else {
+      const self = respondentId
+        ? initialStaff.find((s) => s.id === respondentId)
+        : undefined;
+      const nom = initialStaff.find((s) => s.id === nomineeId);
+      if (self && nom && nameKeyForMatch(self.name) === nameKeyForMatch(nom.name)) {
+        errs.nominee = "自分と同一の氏名は選べません";
+        if (!firstKey) firstKey = "nominee";
+      }
+    }
 
-    for (const b of MVBE_BLOCKS) {
-      const st = blocks[b.key];
-      if (!st.staffId) {
-        errs[b.key] = "必須です";
-        if (!firstKey) firstKey = b.key;
-      }
-      if (
-        st.staffId &&
-        st.staffId !== MVBE_NO_NOMINEE_ID &&
-        selfNk
-      ) {
-        const nom = initialStaff.find((s) => s.id === st.staffId);
-        if (nom && nameKeyForMatch(nom.name) === selfNk) {
-          errs[b.key] = "自分と同一の氏名は選べません";
-          if (!firstKey) firstKey = b.key;
-        }
-      }
-      if (
-        st.staffId &&
-        st.staffId !== MVBE_NO_NOMINEE_ID &&
-        !st.reason.trim()
-      ) {
-        errs[`${b.key}Reason` as const] = "必須です";
-        if (!firstKey) firstKey = b.key;
-      }
+    if (!value.trim()) {
+      errs.value = "必須です";
+      if (!firstKey) firstKey = "value";
+    }
+    if (!reason.trim()) {
+      errs.reason = "必須です";
+      if (!firstKey) firstKey = "reason";
     }
     return { errs, firstKey };
   };
@@ -154,21 +120,14 @@ export function MvbeForm({
     setSubmitting(true);
     setErrors({});
     try {
-      const body = {
-        blocks: Object.fromEntries(
-          MVBE_BLOCKS.map((b) => {
-            const st = blocks[b.key];
-            return [
-              b.key,
-              { staffId: st.staffId!, reason: st.reason.trim() },
-            ];
-          })
-        ),
-      };
       const res = await fetch("/api/forms/mvbe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          nomineeStaffId: nomineeId,
+          value,
+          reason: reason.trim(),
+        }),
       });
       const data = (await res.json()) as { error?: string; issues?: unknown };
       if (!res.ok) {
@@ -189,16 +148,22 @@ export function MvbeForm({
   const clear = () => {
     if (!window.confirm("入力内容をすべて消しますか？")) return;
     setRespondentId(lockedRespondentId);
-    setBlocks(emptyBlocks());
+    setNomineeId(null);
+    setValue("");
+    setReason("");
     setErrors({});
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl px-4 py-8 pb-28">
+    <div className="mx-auto max-w-2xl px-4 py-8 pb-28">
+      <div
+        className="rounded-2xl p-5 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-6"
+        style={{ backgroundColor: UI.sectionCream }}
+      >
       <header className="mb-8">
         <Link
           href="/"
-          className="text-sm font-medium text-teal-700 hover:text-teal-900"
+          className="text-sm font-medium text-orange-700 hover:text-orange-900"
         >
           ← トップに戻る
         </Link>
@@ -206,7 +171,7 @@ export function MvbeForm({
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
             {MVBE_TITLE}
           </h1>
-          <p className="mt-2 text-sm text-teal-900">
+          <p className="mt-2 text-sm text-orange-900">
             進捗：{completed} / {totalSteps} 完了
           </p>
         </div>
@@ -225,7 +190,7 @@ export function MvbeForm({
           <p className="mt-1 leading-relaxed">
             同一評価期間内での再送信はできません（ウィンドウは月の前半は前月16日〜当月15日、後半は当月16日〜本日まで）。
             内容の確認は{" "}
-            <Link href="/my-answers" className="font-medium text-teal-800 underline">
+            <Link href="/my-answers" className="font-medium text-orange-800 underline">
               マイ回答・履歴
             </Link>
             からどうぞ。
@@ -257,60 +222,74 @@ export function MvbeForm({
       <div
         className={`space-y-10 ${alreadySubmittedThisMonth ? "pointer-events-none opacity-60" : ""}`}
       >
-        {MVBE_BLOCKS.map((b, i) => (
-          <section
-            key={b.key}
-            ref={refs[b.key]}
-            className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-xs font-medium text-zinc-500">
-              {i + 1} / {MVBE_BLOCKS.length}
-            </p>
-            <h2 className="mt-1 text-lg font-bold text-zinc-900">{b.heading}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-600">{b.description}</p>
+        <section
+          ref={refs.nominee}
+          className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+        >
+          <p className="text-xs font-medium text-zinc-500">1 / {totalSteps - 1}</p>
+          <div className="mt-4">
+            <StaffPicker
+              label={MVBE_LABEL_NOMINEE}
+              staff={initialStaff}
+              excludeExecutives
+              excludeSameNameAsStaffId={lockedRespondentId}
+              valueId={nomineeId}
+              onChange={setNomineeId}
+              error={errors.nominee}
+            />
+          </div>
+        </section>
 
-            <div className="mt-6">
-              <StaffPicker
-                label="選出するメンバー"
-                staff={initialStaff}
-                excludeExecutives
-                excludeSameNameAsStaffId={lockedRespondentId}
-                noneOption={{
-                  id: MVBE_NO_NOMINEE_ID,
-                  label: MVBE_NO_NOMINEE_LABEL,
-                }}
-                valueId={blocks[b.key].staffId}
-                onChange={(id) => setBlock(b.key, { staffId: id })}
-                error={errors[b.key]}
-              />
-            </div>
+        <section
+          ref={refs.value}
+          className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+        >
+          <p className="text-xs font-medium text-zinc-500">2 / {totalSteps - 1}</p>
+          <div className="mt-4 space-y-2">
+            <label htmlFor="mvbe-value" className="block text-sm font-semibold text-zinc-900">
+              {MVBE_LABEL_VALUE}
+            </label>
+            <select
+              id="mvbe-value"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="w-full rounded-xl border border-zinc-200 px-4 py-3 text-[15px] shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
+            >
+              <option value="">{PLACEHOLDER_SELECT}</option>
+              {SOREINE_VALUES.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            {errors.value && <p className="text-sm text-red-600">{errors.value}</p>}
+          </div>
+        </section>
 
-            <div className="mt-6 space-y-2">
-              <label
-                htmlFor={`mvbe-reason-${b.key}`}
-                className="block text-sm font-semibold text-zinc-900"
-              >
-                {b.reasonLabel}
-              </label>
-              {blocks[b.key].staffId === MVBE_NO_NOMINEE_ID && (
-                <p className="text-xs text-zinc-500">
-                  「{MVBE_NO_NOMINEE_LABEL}」の場合、理由の入力は任意です（補足があれば記入ください）。
-                </p>
-              )}
-              <textarea
-                id={`mvbe-reason-${b.key}`}
-                value={blocks[b.key].reason}
-                onChange={(e) => setBlock(b.key, { reason: e.target.value })}
-                rows={4}
-                placeholder={PLACEHOLDER_TEXT}
-                className="w-full min-h-[6rem] resize-y rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25"
-              />
-              {errors[`${b.key}Reason`] && (
-                <p className="text-sm text-red-600">{errors[`${b.key}Reason`]}</p>
-              )}
-            </div>
-          </section>
-        ))}
+        <section
+          ref={refs.reason}
+          className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
+        >
+          <p className="text-xs font-medium text-zinc-500">3 / {totalSteps - 1}</p>
+          <div className="mt-4 space-y-2">
+            <label
+              htmlFor="mvbe-reason"
+              className="block text-sm font-semibold text-zinc-900"
+            >
+              {MVBE_LABEL_REASON}
+            </label>
+            <textarea
+              id="mvbe-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={5}
+              placeholder={PLACEHOLDER_TEXT}
+              className="w-full min-h-[7rem] resize-y rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
+            />
+            {errors.reason && <p className="text-sm text-red-600">{errors.reason}</p>}
+          </div>
+        </section>
+      </div>
       </div>
 
       <footer className="fixed bottom-0 left-0 right-0 border-t border-zinc-200 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:mt-12 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0">
@@ -327,7 +306,7 @@ export function MvbeForm({
             type="button"
             onClick={submit}
             disabled={submitting || alreadySubmittedThisMonth}
-            className="flex-1 rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-orange-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-700 disabled:opacity-50"
           >
             {submitting ? "送信中…" : "送信"}
           </button>

@@ -14,7 +14,3 @@ function resolveRemoteUrl(): string {
 
 /** ローカルが無い・読み込めないときのフォールバック（`NEXT_PUBLIC_LEVELA_LOGO_URL` または既定 URL） */
 export const LEVELA_LOGO_REMOTE_URL = resolveRemoteUrl();
-
-/** img / next/image 用の実寸（アスペクト比維持） */
-export const LEVELA_LOGO_WIDTH = 459;
-export const LEVELA_LOGO_HEIGHT = 59;

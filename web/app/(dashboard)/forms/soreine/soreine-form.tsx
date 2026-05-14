@@ -10,6 +10,7 @@ import {
   SOREINE_TITLE,
   SOREINE_VALUES,
 } from "@/lib/form-copy";
+import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 import { IntroText } from "@/app/components/IntroText";
 import { StaffPicker } from "@/app/components/StaffPicker";
 import { nameKeyForMatch } from "@/lib/person-name-match";
@@ -130,11 +131,15 @@ export function SoreineForm({
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl px-4 py-8 pb-28">
+    <div className="mx-auto max-w-2xl px-4 py-8 pb-28">
+      <div
+        className="rounded-2xl p-5 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-6"
+        style={{ backgroundColor: UI.sectionCream }}
+      >
       <header className="mb-8">
         <Link
           href="/"
-          className="text-sm font-medium text-teal-700 hover:text-teal-900"
+          className="text-sm font-medium text-orange-700 hover:text-orange-900"
         >
           ← トップに戻る
         </Link>
@@ -186,7 +191,7 @@ export function SoreineForm({
             {SOREINE_VALUES.map((v) => (
               <label
                 key={v}
-                className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm has-[:checked]:border-teal-500 has-[:checked]:ring-2 has-[:checked]:ring-teal-500/20"
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-3 shadow-sm has-[:checked]:border-orange-500 has-[:checked]:ring-2 has-[:checked]:ring-orange-500/20"
               >
                 <input
                   type="radio"
@@ -194,7 +199,7 @@ export function SoreineForm({
                   value={v}
                   checked={value === v}
                   onChange={() => setValue(v)}
-                  className="mt-1 h-4 w-4 accent-teal-600"
+                  className="mt-1 h-4 w-4 accent-orange-600"
                 />
                 <span className="text-[15px] leading-snug text-zinc-800">{v}</span>
               </label>
@@ -216,9 +221,10 @@ export function SoreineForm({
             onChange={(e) => setDetail(e.target.value)}
             rows={5}
             placeholder={PLACEHOLDER_TEXT}
-            className="w-full min-h-[7.5rem] resize-y rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed shadow-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+            className="w-full min-h-[7.5rem] resize-y rounded-xl border border-zinc-200 px-4 py-3 text-[15px] leading-relaxed shadow-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
           />
           {errors.detail && <p className="text-sm text-red-600">{errors.detail}</p>}
+        </div>
         </div>
       </div>
 
@@ -236,7 +242,7 @@ export function SoreineForm({
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="flex-1 rounded-xl bg-teal-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-orange-600 py-3 text-sm font-semibold text-white shadow-sm hover:bg-orange-700 disabled:opacity-50"
           >
             {submitting ? "送信中…" : "送信"}
           </button>

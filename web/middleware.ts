@@ -11,8 +11,11 @@ export default middlewareAuth((req) => {
   if (path.startsWith("/api") && !path.startsWith("/api/auth")) {
     return NextResponse.next();
   }
-  if (path === "/login" || path.startsWith("/api/auth")) {
-    if (path === "/login") {
+
+  const isAuthPage = path === "/login" || path === "/register";
+
+  if (isAuthPage || path.startsWith("/api/auth")) {
+    if (isAuthPage) {
       /** `auth-signin-debug` を `?reason=` に付け替え（AUTH_SIGNIN_DEBUG 時の拒否理由表示用） */
       const debugReason = req.cookies.get("auth-signin-debug")?.value;
       if (debugReason && !req.nextUrl.searchParams.has("reason")) {

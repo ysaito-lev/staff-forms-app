@@ -13,7 +13,7 @@ function getAuth() {
 }
 
 /** A1 範囲（例: `'シート'!A5:E5`）の開始行（1 始まり） */
-export function parseA1StartRow(updatedRange: string): number | null {
+function parseA1StartRow(updatedRange: string): number | null {
   const bang = updatedRange.lastIndexOf("!");
   if (bang === -1) return null;
   const after = updatedRange.slice(bang + 1);

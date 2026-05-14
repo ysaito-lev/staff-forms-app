@@ -1,12 +1,12 @@
 /** 1-based month m の最終日（ローカル Date の慣用パターン） */
-export function lastDayOfCalendarMonth(
+function lastDayOfCalendarMonth(
   year: number,
   month1to12: number
 ): number {
   return new Date(year, month1to12, 0).getDate();
 }
 
-export function formatYmdJst(
+function formatYmdJst(
   y: number,
   m: number,
   day: number

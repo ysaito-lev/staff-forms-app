@@ -90,7 +90,7 @@ export function StaffPicker({
         type="button"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="flex w-full max-w-xl items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-[15px] shadow-sm transition hover:border-teal-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/30 disabled:opacity-50"
+        className="flex w-full max-w-xl items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-left text-[15px] shadow-sm transition hover:border-orange-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 disabled:opacity-50"
       >
         <span className={selected || selectedNone ? "text-zinc-900" : "text-zinc-400"}>
           {selectedNone
@@ -104,10 +104,10 @@ export function StaffPicker({
         </span>
       </button>
       {selectedNone && (
-        <p className="text-sm text-teal-800">選択中：{noneOption.label}</p>
+        <p className="text-sm text-orange-800">選択中：{noneOption.label}</p>
       )}
       {selected && !selectedNone && (
-        <p className="text-sm text-teal-800">
+        <p className="text-sm text-orange-800">
           選択中：{selected.name}（{selected.department}）
           {selected.nickname ? `／${selected.nickname}` : ""}
         </p>
@@ -139,7 +139,7 @@ export function StaffPicker({
                 placeholder="名前・ふりがな・あだ名で検索"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-[15px] focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/25"
+                className="mt-3 w-full rounded-lg border border-zinc-200 px-3 py-2 text-[15px] focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-500/25"
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -148,7 +148,7 @@ export function StaffPicker({
                   <button
                     type="button"
                     onClick={() => pick(noneOption.id)}
-                    className="w-full rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-left text-[15px] font-medium text-zinc-700 hover:border-teal-400 hover:bg-teal-50"
+                    className="w-full rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-3 py-3 text-left text-[15px] font-medium text-zinc-700 hover:border-orange-400 hover:bg-orange-50"
                   >
                     {noneOption.label}
                   </button>
@@ -177,7 +177,7 @@ export function StaffPicker({
                           <button
                             type="button"
                             onClick={() => pick(s.id)}
-                            className="flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left text-[15px] hover:bg-teal-50"
+                            className="flex w-full flex-col items-start gap-0.5 px-3 py-2.5 text-left text-[15px] hover:bg-orange-50"
                           >
                             <span className="font-medium text-zinc-900">{s.name}</span>
                             <span className="text-xs text-zinc-500">
