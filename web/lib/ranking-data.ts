@@ -171,6 +171,20 @@ export async function loadMonthlyRanking(
       continue;
     }
 
+    // ポイント制開始より前でも、Web 追記の V2 行は同一ロジックで軸→ブロックに振り分け、票として集計する
+    const v2legacyMonth = parseMvbeV2Row(row);
+    if (v2legacyMonth) {
+      const n = v2legacyMonth.nomineeName.trim();
+      if (!shouldCountMvbeNominee(n, execNames)) continue;
+      const valNorm = normalizeSoreineValueCell(v2legacyMonth.valueRaw);
+      if (!valNorm) continue;
+      const bk = soreineValueToMvbeBlockKey(valNorm);
+      const key = nameKeyForMatch(n);
+      const map = mvbeByBlock[bk];
+      map.set(key, (map.get(key) ?? 0) + 1);
+      continue;
+    }
+
     const blocks = parseMvbeBlocksForRanking(row);
     if (!blocks) continue;
     for (const b of MVBE_BLOCKS) {
