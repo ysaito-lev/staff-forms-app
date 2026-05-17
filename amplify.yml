@@ -37,6 +37,8 @@ applications:
             - test -n "$SHEET_ENROLLMENT" && printf "SHEET_ENROLLMENT=%s\n" "$SHEET_ENROLLMENT" >> .env.production || true
             - test -n "$SHEET_RESPONSES_SOREINE" && printf "SHEET_RESPONSES_SOREINE=%s\n" "$SHEET_RESPONSES_SOREINE" >> .env.production || true
             - test -n "$SHEET_RESPONSES_MVBE" && printf "SHEET_RESPONSES_MVBE=%s\n" "$SHEET_RESPONSES_MVBE" >> .env.production || true
+            # 任意: MVBe レガシータブ。未設定でも可。「コンソールにだけ」のままでは SSR が読めないので primary と同様に書き出す。
+            - test -n "$SHEET_RESPONSES_MVBE_LEGACY" && printf "SHEET_RESPONSES_MVBE_LEGACY=%s\n" "$SHEET_RESPONSES_MVBE_LEGACY" >> .env.production || true
             - test -n "$SHEET_REGISTRATION" && printf "SHEET_REGISTRATION=%s\n" "$SHEET_REGISTRATION" >> .env.production || true
             - test -n "$SHEET_MEMBER_DISCORD_MAP" && printf "SHEET_MEMBER_DISCORD_MAP=%s\n" "$SHEET_MEMBER_DISCORD_MAP" >> .env.production || true
             - test -n "$MASTER_CACHE_SECONDS" && printf "MASTER_CACHE_SECONDS=%s\n" "$MASTER_CACHE_SECONDS" >> .env.production || true
