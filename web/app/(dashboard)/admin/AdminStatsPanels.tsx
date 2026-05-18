@@ -5,7 +5,11 @@ import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import {
   groupNonRespondersByDepartment,
 } from "@/lib/non-responder-group";
-import type { AdminStatsBundle, NonResponders } from "@/lib/admin-stats";
+import type {
+  AdminStatsBundle,
+  NonResponders,
+  ReadingHabitMonthRollup,
+} from "@/lib/admin-stats";
 import { pctDelta } from "@/lib/pct-delta";
 import type { MvbeDeptWeightResult } from "@/lib/mvbe-dept-weights";
 import type { ReceivedByDeptMonthBundle } from "@/lib/received-by-dept-month-types";
@@ -54,6 +58,99 @@ function Td({
     <td className={"border-b border-slate-100 px-3 py-2 text-sm " + className}>
       {children}
     </td>
+  );
+}
+
+function ReadingHabitOverviewCard({
+  rollup,
+}: {
+  rollup: ReadingHabitMonthRollup;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-4">
+      <h3 className="text-sm font-semibold text-slate-800">読書習慣</h3>
+      {rollup.mode === "disabled" ? (
+        <p className="mt-3 text-sm text-slate-500">
+          <code className="text-xs">GOOGLE_READING_HABIT_SPREADSHEET_ID</code>{" "}
+          が未設定のため集計していません。
+        </p>
+      ) : rollup.mode === "error" ? (
+        <p className="mt-3 text-sm text-amber-900">
+          シートを読み込めませんでした。ブック共有・ID・タブ名（
+          <code className="text-xs">SHEET_RESPONSES_READING_HABIT</code>
+          ）を確認してください。
+        </p>
+      ) : (
+        <>
+          <p className="mt-2 text-2xl font-bold text-orange-800">
+            {rollup.totalRows}
+            <span className="ml-1 text-sm font-normal text-slate-500">件</span>
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            回答者（ユニーク）{" "}
+            <span className="font-medium">{rollup.uniqueRespondents} 名</span>
+            {rollup.responseRatePercent != null && (
+              <span>
+                ・ 回答率{" "}
+                <span className="font-medium">{rollup.responseRatePercent}%</span>
+              </span>
+            )}
+          </p>
+          <p className="mt-2 text-xs text-slate-500">
+            タイムスタンプが選択月（JST 暦月）に入る行のみ。未提出者は「未回答・通知」タブで確認できます。
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ReadingHabitFollowupBlock({
+  year,
+  month,
+  rollup,
+}: {
+  year: number;
+  month: number;
+  rollup: ReadingHabitMonthRollup;
+}) {
+  return (
+    <div className="lg:col-span-1">
+      <h3 className="text-sm font-semibold text-slate-800">
+        読書習慣（{year}年{month}月）{" "}
+        {rollup.mode === "ok" ? (
+          <span className="font-normal text-slate-600">
+            {rollup.notSubmitted.length} 名が未提出
+          </span>
+        ) : null}
+      </h3>
+      {rollup.mode === "disabled" ? (
+        <p className="mt-2 text-sm text-slate-500">
+          環境変数未設定のため、読書習慣の未提出一覧は表示しません。
+        </p>
+      ) : rollup.mode === "error" ? (
+        <p className="mt-2 text-sm text-amber-900">
+          シートを読み込めなかったため、未提出一覧を表示できません。
+        </p>
+      ) : rollup.notSubmitted.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-500">いません</p>
+      ) : (
+        <ul className="mt-2 max-h-64 overflow-y-auto text-sm text-slate-700">
+          {groupNonRespondersByDepartment(rollup.notSubmitted).map((g) => (
+            <li key={g.department} className="border-b border-slate-100 py-2">
+              <div className="text-xs font-semibold text-slate-600">{g.department}</div>
+              <ul className="mt-1 space-y-1 pl-2">
+                {g.members.map((p) => (
+                  <li key={p.id} className="text-slate-700">
+                    {p.name}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -264,7 +361,7 @@ export function AdminStatsPanels({
             <p className="mt-1 text-sm text-slate-500">
               {year}年{month}月・在籍 {stats.eligibleStaff} 名を母数
             </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div className="rounded-lg border border-slate-100 bg-slate-50/80 p-4">
                 <h3 className="text-sm font-semibold text-slate-800">
                   {SOREINE_TITLE}
@@ -315,6 +412,7 @@ export function AdminStatsPanels({
                   )}
                 </p>
               </div>
+              <ReadingHabitOverviewCard rollup={stats.readingHabit} />
             </div>
           </section>
 
@@ -436,10 +534,12 @@ export function AdminStatsPanels({
 
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-base font-bold text-slate-900">
-                ソレイイネ 週次（当該月内）
+                ソレイイネ 提出期別（当該月内）
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                月曜 0:00 始まりの週（回答状況画面と同定義）
+                締切は各回とも<strong className="font-medium text-slate-700">月曜 23:59（JST）</strong>
+                まで。区間は<strong className="font-medium text-slate-700">火曜 0:00〜翌火曜 0:00</strong>
+                （未満）です。
               </p>
               {stats.current.soreine.byWeek.length === 0 ? (
                 <p className="mt-4 text-sm text-slate-500">該当件数なし</p>
@@ -460,6 +560,57 @@ export function AdminStatsPanels({
               )}
             </section>
           </div>
+
+          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-base font-bold text-slate-900">
+              ソレイイネ 回答者別送信件数（当該月）
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              暦月（日本時間）内の送信回数です。複数回送信した場合は件数に反映されます。
+            </p>
+            {stats.current.soreine.byRespondent.length === 0 ? (
+              <p className="mt-4 text-sm text-slate-500">該当者なし</p>
+            ) : (
+              <div
+                className="mt-4 max-h-64 overflow-y-auto overflow-x-auto rounded-lg border border-slate-200 sm:max-h-[min(28rem,55vh)]"
+                role="region"
+                aria-label="回答者別送信件数の一覧（スクロール可能）"
+              >
+                <table className="w-full min-w-[320px] border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <Th className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_0_rgb(226,232,240)]">
+                        氏名
+                      </Th>
+                      <Th className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_0_rgb(226,232,240)]">
+                        部署
+                      </Th>
+                      <Th className="sticky top-0 z-10 bg-slate-50 text-right shadow-[inset_0_-1px_0_0_rgb(226,232,240)]">
+                        送信件数
+                      </Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.current.soreine.byRespondent.map((r, i) => (
+                      <tr
+                        key={
+                          r.staffId
+                            ? r.staffId
+                            : `unmatched-${i}-${r.name}`
+                        }
+                      >
+                        <Td className="font-medium text-slate-800">{r.name}</Td>
+                        <Td>{r.department}</Td>
+                        <Td className="text-right tabular-nums font-medium">
+                          {r.count}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -529,13 +680,21 @@ export function AdminStatsPanels({
           <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-base font-bold text-slate-900">未回答者</h2>
             <p className="mt-1 text-sm text-slate-500">
-              今週の {SOREINE_TITLE} 未提出（月曜
-              0:00 からの週）・{MVBE_TITLE} は暦月の未提出。一覧はマスタのメイン部署でまとめています。
+              <strong className="font-medium text-slate-700">{SOREINE_TITLE}</strong>
+              は、現在の提出期（火曜 0:00〜締切の翌火曜 0:00 未満・締切は月曜 23:59 JST）に回答が無い方です。
+              <strong className="font-medium text-slate-700">{MVBE_TITLE}</strong>
+              は現在の提出ウィンドウ基準の未提出です。
+              読書習慣は
+              <strong className="font-medium text-slate-700">
+                上で選択した集計月（{year}年{month}
+                月・JST）
+              </strong>
+              にタイムスタンプの無い方です。一覧はマスタのメイン部署でまとめています。
             </p>
-            <div className="mt-6 grid gap-8 md:grid-cols-2">
+            <div className="mt-6 grid gap-8 lg:grid-cols-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-800">
-                  {SOREINE_TITLE}（今週） {nonResp.soreineNotThisWeek.length}{" "}
+                  {SOREINE_TITLE}（今回の提出期） {nonResp.soreineNotThisWeek.length}{" "}
                   名
                 </h3>
                 <ul className="mt-2 max-h-64 overflow-y-auto text-sm text-slate-700">
@@ -594,13 +753,12 @@ export function AdminStatsPanels({
                   )}
                 </ul>
               </div>
+              <ReadingHabitFollowupBlock
+                year={year}
+                month={month}
+                rollup={stats.readingHabit}
+              />
             </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-bold text-slate-900">
-              {MVBE_TITLE} 未提出の Discord リマインド
-            </h2>
             <MvbeReminderPanel />
           </section>
           </>

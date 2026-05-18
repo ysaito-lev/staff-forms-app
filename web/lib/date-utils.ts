@@ -1,4 +1,7 @@
-/** 集計基準: 月曜0:00・暦月（本文は status 画面と同じ。計算は Asia/Tokyo） */
+/**
+ * 集計基準は Asia/Tokyo。
+ * ソレイイネ!! は「締切：毎週月曜 23:59（JST）」→ 実装上 `[火曜 0:00, 翌火曜 0:00)` の7日間で判定。
+ */
 const REPORT_TZ = "Asia/Tokyo";
 
 function jstNoonOnCalendarDate(y: number, m: number, day: number): Date {
@@ -42,7 +45,7 @@ function weekdayMon0JstOnCalendarYmd(ymd: { y: number; m: number; day: number })
   return map[wk] ?? 0;
 }
 
-/** 月曜 0:00 JST 始まりの週区切り（「今週」判定等と同じ定義） */
+/** 月曜 0:00 JST 始まりの ISO 週の月曜 0:00（ソレイイネの提出期間とは別） */
 export function startOfIsoWeekJst(anchor: Date): Date {
   const ymd = ymdJst(anchor);
   const mid = jstNoonOnCalendarDate(ymd.y, ymd.m, ymd.day);
@@ -54,12 +57,63 @@ export function startOfIsoWeekJst(anchor: Date): Date {
   );
 }
 
-export function inThisWeek(iso: string): boolean {
+/** アンカーが属するソレイイネ提出期の「締切月曜」（JST 暦日） */
+function soreineClosingMondayYmd(anchor: Date): { y: number; m: number; day: number } {
+  const ymd = ymdJst(anchor);
+  const w = weekdayMon0JstOnCalendarYmd(ymd);
+  const daysToClosingMon = w === 0 ? 0 : 7 - w;
+  const noon = jstNoonOnCalendarDate(ymd.y, ymd.m, ymd.day);
+  const target = new Date(noon.getTime() + daysToClosingMon * 864e5);
+  return ymdJst(target);
+}
+
+/**
+ * ソレイイネ提出期（JST）：火曜 0:00 〜 翌火曜 0:00 未満（締切月曜 23:59 までを含む）。
+ */
+export function getSoreineSubmissionPeriodBoundsJst(
+  anchor: Date
+): { start: Date; endExclusive: Date } {
+  const close = soreineClosingMondayYmd(anchor);
+  const closeNoon = jstNoonOnCalendarDate(close.y, close.m, close.day);
+  const tuesdayNoon = new Date(closeNoon.getTime() - 6 * 864e5);
+  const tue = ymdJst(tuesdayNoon);
+  const start = jstDayStart(tue.y, tue.m, tue.day);
+  const endExclusive = startOfNextCalendarDayJst(closeNoon);
+  return { start, endExclusive };
+}
+
+/** `iso` がアンカー時点の「今回の」ソレイイネ提出期内か（締切：その週の月曜 23:59 JST） */
+export function inCurrentSoreineSubmissionPeriod(
+  iso: string,
+  anchor: Date = new Date()
+): boolean {
+  const { start, endExclusive } = getSoreineSubmissionPeriodBoundsJst(anchor);
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return false;
-  const start = startOfIsoWeekJst(new Date());
-  const end = new Date(start.getTime() + 7 * 864e5);
-  return t >= start && t < end;
+  return t >= start && t < endExclusive;
+}
+
+/** 暦月と交差するソレイイネ提出期（各 `[火曜0:00, 翌火曜0:00)`）を列挙 */
+export function soreineSubmissionPeriodsOverlappingCalendarMonth(
+  year: number,
+  month: number
+): { start: Date; endExclusive: Date }[] {
+  const { start: ms, endExclusive: me } = getCalendarMonthRangeJst(year, month);
+  const msYmd = ymdJst(ms);
+  const w = weekdayMon0JstOnCalendarYmd(msYmd);
+  const daysBack = w === 0 ? 6 : w === 1 ? 0 : w - 1;
+  const noonMs = jstNoonOnCalendarDate(msYmd.y, msYmd.m, msYmd.day);
+  const tuesdayYmd = ymdJst(new Date(noonMs.getTime() - daysBack * 864e5));
+  let periodStart = jstDayStart(tuesdayYmd.y, tuesdayYmd.m, tuesdayYmd.day);
+  const out: { start: Date; endExclusive: Date }[] = [];
+  while (periodStart < me) {
+    const periodEndExclusive = new Date(periodStart.getTime() + 7 * 864e5);
+    if (periodStart < me && periodEndExclusive > ms) {
+      out.push({ start: periodStart, endExclusive: periodEndExclusive });
+    }
+    periodStart = periodEndExclusive;
+  }
+  return out;
 }
 
 export function inThisMonth(iso: string): boolean {
@@ -169,6 +223,51 @@ export function getCalendarMonthRangeJst(
     `${nextY.toString().padStart(4, "0")}-${p(nextM)}-01T00:00:00+09:00`
   );
   return { start, endExclusive };
+}
+
+/** JST: 各月16日0:00開始のMVBe提出ウィンドウ `[start, endExclusive)`（翌月16日0:00まで）。 */
+export function mvbeCanonicalWindowFromSixteenth(
+  year: number,
+  month: number
+): { start: Date; endExclusive: Date } {
+  const start = jstDayStart(year, month, 16);
+  const ny = month === 12 ? year + 1 : year;
+  const nm = month === 12 ? 1 : month + 1;
+  const endExclusive = jstDayStart(ny, nm, 16);
+  return { start, endExclusive };
+}
+
+/** 指定暦月（JST）と区間が重なるMVBeウィンドウ一覧（通常1〜2件）。 */
+export function mvbeCanonicalWindowsOverlappingCalendarMonth(
+  year: number,
+  month: number
+): { start: Date; endExclusive: Date }[] {
+  const { start: ms, endExclusive: me } = getCalendarMonthRangeJst(year, month);
+  const out: { start: Date; endExclusive: Date }[] = [];
+  for (let delta = -1; delta <= 1; delta++) {
+    const idx = year * 12 + (month - 1) + delta;
+    const wy = Math.floor(idx / 12);
+    const wm = (idx % 12) + 1;
+    const w = mvbeCanonicalWindowFromSixteenth(wy, wm);
+    if (w.start < me && w.endExclusive > ms) out.push(w);
+  }
+  return out;
+}
+
+/** ISO週（月曜0:00 JST 開始・7日間）で指定暦月と交差するものを列挙。 */
+export function isoWeekRangesOverlappingCalendarMonth(
+  year: number,
+  month: number
+): { start: Date; endExclusive: Date }[] {
+  const { start: ms, endExclusive: me } = getCalendarMonthRangeJst(year, month);
+  const out: { start: Date; endExclusive: Date }[] = [];
+  let ws = startOfIsoWeekJst(ms);
+  while (ws < me) {
+    const we = new Date(ws.getTime() + 7 * 864e5);
+    if (ws < me && we > ms) out.push({ start: ws, endExclusive: we });
+    ws = we;
+  }
+  return out;
 }
 
 /** 日時が [start, endExclusive) を満たすか（JST 暦月境界と組み合わせて利用） */

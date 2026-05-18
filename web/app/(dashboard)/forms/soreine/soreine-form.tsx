@@ -11,6 +11,7 @@ import {
   SOREINE_VALUES,
 } from "@/lib/form-copy";
 import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
+import { ConfirmModal } from "@/app/components/ConfirmModal";
 import { IntroText } from "@/app/components/IntroText";
 import { StaffPicker } from "@/app/components/StaffPicker";
 import { nameKeyForMatch } from "@/lib/person-name-match";
@@ -37,6 +38,7 @@ export function SoreineForm({
   const [detail, setDetail] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
 
   useEffect(() => {
     setRespondentId(lockedRespondentId);
@@ -121,8 +123,7 @@ export function SoreineForm({
     }
   };
 
-  const clear = () => {
-    if (!window.confirm("入力内容をすべて消しますか？")) return;
+  const performClear = () => {
     setRespondentId(lockedRespondentId);
     setPraisedId(null);
     setValue("");
@@ -131,6 +132,7 @@ export function SoreineForm({
   };
 
   return (
+    <>
     <div className="mx-auto max-w-2xl px-4 py-8 pb-28">
       <div
         className="rounded-2xl p-5 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-6"
@@ -232,7 +234,7 @@ export function SoreineForm({
         <div className="mx-auto flex max-w-2xl gap-3">
           <button
             type="button"
-            onClick={clear}
+            onClick={() => setClearModalOpen(true)}
             disabled={submitting}
             className="flex-1 rounded-xl border border-zinc-300 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
           >
@@ -249,5 +251,21 @@ export function SoreineForm({
         </div>
       </footer>
     </div>
+
+    <ConfirmModal
+      open={clearModalOpen}
+      title="フォームをクリア"
+      cancelLabel="キャンセル"
+      confirmLabel="すべて消す"
+      confirmVariant="danger"
+      onCancel={() => setClearModalOpen(false)}
+      onConfirm={() => {
+        performClear();
+        setClearModalOpen(false);
+      }}
+    >
+      <p>入力内容をすべて消しますか？この操作は取り消せません。</p>
+    </ConfirmModal>
+    </>
   );
 }

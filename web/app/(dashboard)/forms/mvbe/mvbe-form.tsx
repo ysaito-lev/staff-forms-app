@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Staff } from "@/lib/staff-types";
 import {
@@ -15,6 +15,7 @@ import {
   SOREINE_VALUES,
 } from "@/lib/form-copy";
 import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
+import { ConfirmModal } from "@/app/components/ConfirmModal";
 import { IntroText } from "@/app/components/IntroText";
 import { StaffPicker } from "@/app/components/StaffPicker";
 import { nameKeyForMatch } from "@/lib/person-name-match";
@@ -37,6 +38,7 @@ export function MvbeForm({
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
 
   useEffect(() => {
     setRespondentId(lockedRespondentId);
@@ -58,17 +60,6 @@ export function MvbeForm({
     value: useRef<HTMLDivElement>(null),
     reason: useRef<HTMLDivElement>(null),
   };
-
-  const completed = useMemo(() => {
-    let n = 0;
-    if (respondentId) n += 1;
-    if (nomineeId) n += 1;
-    if (value.trim()) n += 1;
-    if (reason.trim()) n += 1;
-    return n;
-  }, [respondentId, nomineeId, value, reason]);
-
-  const totalSteps = 4;
 
   const scrollTo = (el: HTMLElement | null) => {
     el?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -145,8 +136,7 @@ export function MvbeForm({
     }
   };
 
-  const clear = () => {
-    if (!window.confirm("入力内容をすべて消しますか？")) return;
+  const performClear = () => {
     setRespondentId(lockedRespondentId);
     setNomineeId(null);
     setValue("");
@@ -155,6 +145,7 @@ export function MvbeForm({
   };
 
   return (
+    <>
     <div className="mx-auto max-w-2xl px-4 py-8 pb-28">
       <div
         className="rounded-2xl p-5 shadow-[0_4px_28px_rgba(255,152,0,0.08)] ring-1 ring-orange-100/45 md:p-6"
@@ -171,9 +162,6 @@ export function MvbeForm({
           <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
             {MVBE_TITLE}
           </h1>
-          <p className="mt-2 text-sm text-orange-900">
-            進捗：{completed} / {totalSteps} 完了
-          </p>
         </div>
       </header>
 
@@ -188,7 +176,7 @@ export function MvbeForm({
         >
           <p className="font-medium">現在の提出期において MVBe は回答済みです</p>
           <p className="mt-1 leading-relaxed">
-            同一評価期間内での再送信はできません（ウィンドウは月の前半は前月16日〜当月15日、後半は当月16日〜本日まで）。
+            同一評価期間内での再送信はできません。
             内容の確認は{" "}
             <Link href="/my-answers" className="font-medium text-orange-800 underline">
               マイ回答・履歴
@@ -226,26 +214,22 @@ export function MvbeForm({
           ref={refs.nominee}
           className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
         >
-          <p className="text-xs font-medium text-zinc-500">1 / {totalSteps - 1}</p>
-          <div className="mt-4">
-            <StaffPicker
-              label={MVBE_LABEL_NOMINEE}
-              staff={initialStaff}
-              excludeExecutives
-              excludeSameNameAsStaffId={lockedRespondentId}
-              valueId={nomineeId}
-              onChange={setNomineeId}
-              error={errors.nominee}
-            />
-          </div>
+          <StaffPicker
+            label={MVBE_LABEL_NOMINEE}
+            staff={initialStaff}
+            excludeExecutives
+            excludeSameNameAsStaffId={lockedRespondentId}
+            valueId={nomineeId}
+            onChange={setNomineeId}
+            error={errors.nominee}
+          />
         </section>
 
         <section
           ref={refs.value}
           className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
         >
-          <p className="text-xs font-medium text-zinc-500">2 / {totalSteps - 1}</p>
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2">
             <label htmlFor="mvbe-value" className="block text-sm font-semibold text-zinc-900">
               {MVBE_LABEL_VALUE}
             </label>
@@ -270,8 +254,7 @@ export function MvbeForm({
           ref={refs.reason}
           className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
         >
-          <p className="text-xs font-medium text-zinc-500">3 / {totalSteps - 1}</p>
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2">
             <label
               htmlFor="mvbe-reason"
               className="block text-sm font-semibold text-zinc-900"
@@ -296,7 +279,7 @@ export function MvbeForm({
         <div className="mx-auto flex max-w-2xl gap-3">
           <button
             type="button"
-            onClick={clear}
+            onClick={() => setClearModalOpen(true)}
             disabled={submitting || alreadySubmittedThisMonth}
             className="flex-1 rounded-xl border border-zinc-300 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
           >
@@ -313,5 +296,21 @@ export function MvbeForm({
         </div>
       </footer>
     </div>
+
+    <ConfirmModal
+      open={clearModalOpen}
+      title="フォームをクリア"
+      cancelLabel="キャンセル"
+      confirmLabel="すべて消す"
+      confirmVariant="danger"
+      onCancel={() => setClearModalOpen(false)}
+      onConfirm={() => {
+        performClear();
+        setClearModalOpen(false);
+      }}
+    >
+      <p>入力内容をすべて消しますか？この操作は取り消せません。</p>
+    </ConfirmModal>
+    </>
   );
 }

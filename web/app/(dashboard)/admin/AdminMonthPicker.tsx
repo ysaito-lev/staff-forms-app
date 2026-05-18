@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { YmRouteMonthPicker } from "@/app/components/YmRouteMonthPicker";
 
 type Props = {
   value: string;
@@ -9,27 +9,14 @@ type Props = {
 };
 
 export function AdminMonthPicker({ value, minYm, maxYm }: Props) {
-  const router = useRouter();
   return (
-    <div className="flex flex-col gap-1 sm:items-end">
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="admin-ym" className="text-sm font-medium text-slate-700">
-          集計月（日本時間・暦月）
-        </label>
-        <input
-          id="admin-ym"
-          type="month"
-          name="ym"
-          min={minYm}
-          max={maxYm}
-          value={value}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v) router.push(`/admin?ym=${v}`);
-          }}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-        />
-      </div>
-    </div>
+    <YmRouteMonthPicker
+      value={value}
+      minYm={minYm}
+      maxYm={maxYm}
+      inputId="admin-ym"
+      label="集計月（日本時間・暦月）"
+      pathname="/admin"
+    />
   );
 }

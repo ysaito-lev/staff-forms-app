@@ -1,4 +1,3 @@
-import { MVBE_TITLE, MVBE_BLOCKS } from "@/lib/form-copy";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import {
@@ -134,7 +133,14 @@ export default async function RankingPage({ searchParams }: Props) {
         <div className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:flex sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h1 className="text-lg font-semibold text-slate-800">月間ランキング</h1>
-            <p className="mt-1 text-sm text-slate-500">{MVBE_TITLE} のみ集計しています。</p>
+            <p className="mt-1 max-w-xl text-sm text-slate-500">
+              MVBe（選出1件につき1点）、ソレイイネ!!（1件につき0.25点）、読書習慣（その月に回答があれば+1点・無ければ−1点）、提出義務未達（MVBe
+              は提出ウィンドウごと・ソレイイネは
+              <strong className="font-medium text-slate-700">
+                月曜23:59締切の提出期（火曜0:00始まり）
+              </strong>
+              がその月と重なる回ごとに−1点）を合算した総合ランキングです。
+            </p>
           </div>
           {configured && (
             <RankingMonthPicker value={ym} minYm={minYm} maxYm={maxYm} />
@@ -150,91 +156,78 @@ export default async function RankingPage({ searchParams }: Props) {
         {data && (
           <div className="mt-10">
             <h2 className="mb-5 text-base font-bold text-slate-900">
-              {MVBE_TITLE}{" "}
+              総合{" "}
               <span className="text-sm font-normal text-slate-500">
                 （{year} 年 {month} 月）
               </span>
             </h2>
-            <div className="space-y-8">
-              {MVBE_BLOCKS.map((b) => {
-                const rows = data.mvbe[b.key] ?? [];
-                return (
-                  <section
-                    key={b.key}
-                    className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/90 shadow-sm"
-                  >
-                    <div className="border-b border-orange-100 bg-orange-50/70 px-5 py-3">
-                      <h3 className="text-base font-semibold text-slate-900">{b.heading}</h3>
-                    </div>
-                    <div className="p-4 sm:p-5">
-                      {rows.length > 0 ? (
-                        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                          {rows.map((r) => {
-                            const s = rankCardStyles(r.rank);
-                            return (
-                              <li
-                                key={r.name}
-                                className={`group relative flex flex-col overflow-hidden rounded-2xl border p-3.5 transition duration-200 hover:-translate-y-0.5 sm:p-4 ${s.frame}`}
-                              >
-                                <div
-                                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-30%,rgba(255,255,255,0.75),transparent)]"
-                                  aria-hidden
-                                />
-                                <div className="relative flex min-h-[2.5rem] items-center gap-2 sm:gap-3">
-                                  <div
-                                    className={`inline-flex h-9 min-w-[2.75rem] shrink-0 items-center justify-center self-center rounded-lg px-2 text-sm font-bold tabular-nums ${s.badge}`}
-                                    title={`${r.rank} 位`}
-                                  >
-                                    {r.rank}位
-                                  </div>
-                                  <p className="min-w-0 flex-1 self-center text-sm font-semibold leading-snug tracking-tight text-slate-900 sm:text-base">
-                                    {r.name}
-                                  </p>
-                                  <span
-                                    className={`inline-flex shrink-0 items-baseline gap-0.5 self-center rounded-full px-2 py-1 ${s.votePill}`}
-                                  >
-                                    <span className="text-base font-bold tabular-nums leading-none sm:text-lg">
-                                      {data.usesPoints
-                                        ? r.score.toLocaleString("ja-JP", {
-                                            maximumFractionDigits: 1,
-                                          })
-                                        : String(r.score)}
-                                    </span>
-                                    <span className="text-xs font-semibold leading-none opacity-80">
-                                      {data.usesPoints ? "pt" : "票"}
-                                    </span>
-                                  </span>
-                                </div>
-                                <div className="relative mt-2.5 space-y-1.5 text-xs text-slate-600 sm:mt-2">
-                                  <p className="flex items-start gap-2">
-                                    <IconBuilding className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                                    <span className="min-w-0">
-                                      <span className="text-slate-500">部署</span>
-                                      <span className="mx-1.5 text-slate-300">·</span>
-                                      <span className="font-medium text-slate-700">{r.department}</span>
-                                    </span>
-                                  </p>
-                                  <p className="flex items-start gap-2">
-                                    <IconTag className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                                    <span className="min-w-0">
-                                      <span className="text-slate-500">あだ名</span>
-                                      <span className="mx-1.5 text-slate-300">·</span>
-                                      <span className="font-medium text-slate-700">{r.nickname ?? "—"}</span>
-                                    </span>
-                                  </p>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      ) : (
-                        <p className="px-1 py-2 text-sm text-slate-500">この月の集計はありません。</p>
-                      )}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
+            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/90 shadow-sm">
+              <div className="border-b border-orange-100 bg-orange-50/70 px-5 py-3">
+                <h3 className="text-base font-semibold text-slate-900">上位ランキング</h3>
+              </div>
+              <div className="p-4 sm:p-5">
+                {data.combined.length > 0 ? (
+                  <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {data.combined.map((r) => {
+                      const s = rankCardStyles(r.rank);
+                      return (
+                        <li
+                          key={r.name}
+                          className={`group relative flex flex-col overflow-hidden rounded-2xl border p-3.5 transition duration-200 hover:-translate-y-0.5 sm:p-4 ${s.frame}`}
+                        >
+                          <div
+                            className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_55%_at_50%_-30%,rgba(255,255,255,0.75),transparent)]"
+                            aria-hidden
+                          />
+                          <div className="relative flex min-h-[2.5rem] items-center gap-2 sm:gap-3">
+                            <div
+                              className={`inline-flex h-9 min-w-[2.75rem] shrink-0 items-center justify-center self-center rounded-lg px-2 text-sm font-bold tabular-nums ${s.badge}`}
+                              title={`${r.rank} 位`}
+                            >
+                              {r.rank}位
+                            </div>
+                            <p className="min-w-0 flex-1 self-center text-sm font-semibold leading-snug tracking-tight text-slate-900 sm:text-base">
+                              {r.name}
+                            </p>
+                            <span
+                              className={`inline-flex shrink-0 items-baseline gap-0.5 self-center rounded-full px-2 py-1 ${s.votePill}`}
+                            >
+                              <span className="text-base font-bold tabular-nums leading-none sm:text-lg">
+                                {r.score.toLocaleString("ja-JP", {
+                                  maximumFractionDigits: 1,
+                                  minimumFractionDigits: Number.isInteger(r.score) ? 0 : 1,
+                                })}
+                              </span>
+                              <span className="text-xs font-semibold leading-none opacity-80">点</span>
+                            </span>
+                          </div>
+                          <div className="relative mt-2.5 space-y-1.5 text-xs text-slate-600 sm:mt-2">
+                            <p className="flex items-start gap-2">
+                              <IconBuilding className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                              <span className="min-w-0">
+                                <span className="text-slate-500">部署</span>
+                                <span className="mx-1.5 text-slate-300">·</span>
+                                <span className="font-medium text-slate-700">{r.department}</span>
+                              </span>
+                            </p>
+                            <p className="flex items-start gap-2">
+                              <IconTag className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                              <span className="min-w-0">
+                                <span className="text-slate-500">あだ名</span>
+                                <span className="mx-1.5 text-slate-300">·</span>
+                                <span className="font-medium text-slate-700">{r.nickname ?? "—"}</span>
+                              </span>
+                            </p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="px-1 py-2 text-sm text-slate-500">この月の集計はありません。</p>
+                )}
+              </div>
+            </section>
           </div>
         )}
       </div>

@@ -104,16 +104,28 @@ export async function POST(req: Request) {
 
   if (isSoreineDiscordWebhookConfigured()) {
     try {
-      await notifySoreineSubmissionToDiscord({
+      const discordPermalink = await notifySoreineSubmissionToDiscord({
         respondentName: respondent.name,
         admiredPerson: praised.name,
         valueEmbodied: value,
         detailedContent: detail,
       });
       if (sheetRow) {
+        const updates: {
+          row: number;
+          colLetter: string;
+          value: string;
+        }[] = [{ row: sheetRow, colLetter: "F", value: "済" }];
+        if (discordPermalink) {
+          updates.push({
+            row: sheetRow,
+            colLetter: "G",
+            value: discordPermalink,
+          });
+        }
         await batchUpdateCellsInResponsesSpreadsheet(
           e.SHEET_RESPONSES_SOREINE,
-          [{ row: sheetRow, colLetter: "F", value: "済" }],
+          updates,
           soreineSpreadsheetId
         );
       } else {

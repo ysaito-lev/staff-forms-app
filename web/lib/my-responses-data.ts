@@ -22,6 +22,7 @@ import {
   parseMvbeRowFullBlocks,
   parseMvbeRowToDisplay,
   parseMvbeV2Row,
+  soreineDiscordMessageUrlFromRow,
   parseSoreineRowToDisplay,
 } from "@/lib/response-sheet-layout";
 import { respondentDepartmentFromName } from "@/lib/respondent-department";
@@ -35,6 +36,8 @@ export type SoreineResponseRow = {
   praisedName: string;
   value: string;
   detail: string;
+  /** シート G 列（permalink）。未送信・旧データは undefined */
+  discordMessageUrl?: string;
 };
 
 export type MvbeResponseRow = {
@@ -55,6 +58,7 @@ export type SoreineReceivedRow = {
   fromDepartment: string;
   value: string;
   comment: string;
+  discordMessageUrl?: string;
 };
 
 export type MvbeReceivedRow = {
@@ -137,6 +141,7 @@ function parseSoreineMine(
 
     const parsed = parseSoreineRowToDisplay(row);
     if (parsed) {
+      const discordMessageUrl = soreineDiscordMessageUrlFromRow(row);
       out.push({
         submittedAt: normalizeSheetTimestamp(String(row[0])),
         respondentId: staffId,
@@ -145,10 +150,12 @@ function parseSoreineMine(
         praisedName: parsed.praisedName,
         value: parsed.value,
         detail: parsed.detail,
+        ...(discordMessageUrl ? { discordMessageUrl } : {}),
       });
       continue;
     }
     if (row.length < 7) continue;
+    const discordLegacy = soreineDiscordMessageUrlFromRow(row);
     out.push({
       submittedAt: normalizeSheetTimestamp(String(row[0])),
       respondentId: row[1] ?? "",
@@ -157,6 +164,7 @@ function parseSoreineMine(
       praisedName: row[4] ?? "",
       value: row[5] ?? "",
       detail: row[6] ?? "",
+      ...(discordLegacy ? { discordMessageUrl: discordLegacy } : {}),
     });
   }
   return out.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
@@ -275,6 +283,7 @@ function parseSoreineReceived(
     } else {
       continue;
     }
+    const discordMessageUrl = soreineDiscordMessageUrlFromRow(row);
     const fromNm = soreineFromRespondentName(row) || "（不明）";
     out.push({
       submittedAt: normalizeSheetTimestamp(String(row[0])),
@@ -282,6 +291,7 @@ function parseSoreineReceived(
       fromDepartment: respondentDepartmentFromName(fromNm, staffList),
       value,
       comment,
+      ...(discordMessageUrl ? { discordMessageUrl } : {}),
     });
   }
   return out.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));

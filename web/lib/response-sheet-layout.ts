@@ -218,7 +218,19 @@ const SR = {
   praised: 2,
   value: 3,
   detail: 4,
+  /** F 列: Discord 済（手動・本アプリ） */
+  discordDone: 5,
+  /** G 列: Discord メッセージへの permalink（本アプリが `wait=true` で記録） */
+  discordPermalink: 6,
 } as const;
+
+/** マイ回答用: G 列に保存した Discord メッセージ URL のみ読む（詳細文言との誤判定を避けるため形式検証） */
+export function soreineDiscordMessageUrlFromRow(row: string[]): string | undefined {
+  const u = cell(row[SR.discordPermalink]).trim();
+  return /^https:\/\/discord\.com\/channels\/\d+\/\d+\/\d+$/.test(u)
+    ? u
+    : undefined;
+}
 
 export function buildSoreineSheetRow(params: {
   submittedAt: string;
@@ -234,6 +246,36 @@ export function buildSoreineSheetRow(params: {
   row[SR.praised] = praised.name;
   row[SR.value] = value;
   row[SR.detail] = detail.trim();
+  return row;
+}
+
+/** Code.gs `読書.gas` と同一の 6 列（A=タイムスタンプ … F=評価 1〜5） */
+export const READING_HABIT_SHEET_COL_COUNT = 6;
+
+const RH = {
+  ts: 0,
+  respondent: 1,
+  bookTitle: 2,
+  comment: 3,
+  application: 4,
+  rating: 5,
+} as const;
+
+export function buildReadingHabitSheetRow(params: {
+  submittedAt: string;
+  respondentName: string;
+  bookTitle: string;
+  comment: string;
+  application: string;
+  rating: number;
+}): string[] {
+  const row = Array<string>(READING_HABIT_SHEET_COL_COUNT).fill("");
+  row[RH.ts] = params.submittedAt;
+  row[RH.respondent] = params.respondentName.trim();
+  row[RH.bookTitle] = params.bookTitle.trim();
+  row[RH.comment] = params.comment.trim();
+  row[RH.application] = params.application.trim();
+  row[RH.rating] = String(params.rating);
   return row;
 }
 

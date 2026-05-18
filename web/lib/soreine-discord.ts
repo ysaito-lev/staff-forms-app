@@ -176,19 +176,28 @@ function soreineWebhookUrl(): string | null {
   return getEnv().DISCORD_SOREINE_WEBHOOK_URL?.trim() || null;
 }
 
+/** Execute Webhook に `wait=true` を付け、応答ボディからメッセージオブジェクトを得る（既にあれば変更しない） */
+function webhookExecuteUrlWithWait(webhookUrl: string): string {
+  const u = webhookUrl.trim();
+  if (/[?&]wait=true(?:&|$)/i.test(u)) return u;
+  return u.includes("?") ? `${u}&wait=true` : `${u}?wait=true`;
+}
+
 export function isSoreineDiscordWebhookConfigured(): boolean {
   return Boolean(soreineWebhookUrl());
 }
 
 /**
- * Code.gs `checkAndSendResponses` 内の Webhook 本文・メンションと同一の通知
+ * Code.gs `checkAndSendResponses` 内の Webhook 本文・メンションと同一の通知。
+ * Execute Webhook に `wait=true` を付け、返却されたメッセージからpermalinkを組み立てる。
+ * Discord が本文を返さない場合やパースできないときは null（通知自体は成功扱い）。
  */
 export async function notifySoreineSubmissionToDiscord(params: {
   respondentName: string;
   admiredPerson: string;
   valueEmbodied: string;
   detailedContent: string;
-}): Promise<void> {
+}): Promise<string | null> {
   const webhook = soreineWebhookUrl();
   if (!webhook) {
     throw new Error("DISCORD_SOREINE_WEBHOOK_URL が未設定です。");
@@ -227,7 +236,8 @@ export async function notifySoreineSubmissionToDiscord(params: {
     params.detailedContent +
     "\n\n";
 
-  const res = await fetch(webhook, {
+  const execUrl = webhookExecuteUrlWithWait(webhook);
+  const res = await fetch(execUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -239,5 +249,17 @@ export async function notifySoreineSubmissionToDiscord(params: {
   if (!res.ok) {
     const t = (await res.text()).slice(0, 200);
     throw new Error(`Discord Webhook: ${res.status} ${t}`);
+  }
+  const raw = await res.text();
+  if (!raw.trim()) return null;
+  try {
+    const msg = JSON.parse(raw) as { id?: string; channel_id?: string };
+    const mid = (msg?.id ?? "").trim();
+    const cid = (msg?.channel_id ?? "").trim();
+    const gid = (e.DISCORD_GUILD_ID ?? "").trim();
+    if (!mid || !cid || !gid) return null;
+    return `https://discord.com/channels/${gid}/${cid}/${mid}`;
+  } catch {
+    return null;
   }
 }

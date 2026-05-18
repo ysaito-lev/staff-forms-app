@@ -57,6 +57,19 @@ export function normalizeSoreineValueCell(
 
 export const MVBE_TITLE = "MVBe";
 
+export const READING_HABIT_TITLE = "読書習慣";
+
+export const READING_HABIT_INTRO = `今月読んだ本を報告しましょう。
+感想や仕事・プライベートへの活かし方も共有してください。`;
+
+export const READING_HABIT_LABELS = {
+  respondent: "回答者",
+  bookTitle: "読んだ本のタイトル",
+  comment: "感想（刺さったフレーズなどもあれば教えてください）",
+  application: "仕事・プライベートに落とし込めそうなところ",
+  rating: "評価",
+} as const;
+
 export const MVBE_NO_NOMINEE_LABEL = "該当者なし";
 
 /** 月間ランキングに票として加算しない「該当なし」表記（氏名欄の文字列を nameKey 正規化して照合） */

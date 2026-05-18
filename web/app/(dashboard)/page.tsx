@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
+import { MVBE_TITLE, READING_HABIT_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import { SITE_AUDIENCE_LABEL, SITE_TITLE } from "@/lib/site-brand";
 import { STRENGTHS_REPORT_UI as UI } from "@/lib/strengths-report-ui";
 
@@ -24,7 +24,7 @@ export default async function Home({ searchParams }: Props) {
             {SITE_TITLE}
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-zinc-600">
-          ようこそ。週次のソレイイネ!! と月次の MVBe は、メニューまたは下のカードから選べます。
+          ようこそ。週次のソレイイネ!!・月次の MVBe・読書習慣は、メニューまたは下のカードから選べます。
           </p>
         </header>
 
@@ -44,8 +44,16 @@ export default async function Home({ searchParams }: Props) {
             {MVBE_TITLE}の送信が完了しました。
           </div>
         )}
+        {ok === "reading-habit" && (
+          <div
+            className="mb-8 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-900"
+            role="status"
+          >
+            {READING_HABIT_TITLE}の送信が完了しました。
+          </div>
+        )}
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Link
             href="/forms/soreine"
             className="group flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-orange-400 hover:shadow-md"
@@ -67,6 +75,18 @@ export default async function Home({ searchParams }: Props) {
             </span>
             <span className="mt-2 flex-1 text-sm leading-relaxed text-zinc-600">
               今月の MVBe を選出します。
+            </span>
+            <span className="mt-4 text-sm font-semibold text-orange-700">回答する →</span>
+          </Link>
+          <Link
+            href="/forms/reading-habit"
+            className="group flex flex-col rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-orange-400 hover:shadow-md"
+          >
+            <span className="text-lg font-bold text-zinc-900 group-hover:text-orange-800">
+              {READING_HABIT_TITLE}
+            </span>
+            <span className="mt-2 flex-1 text-sm leading-relaxed text-zinc-600">
+              今月読んだ本を報告します。
             </span>
             <span className="mt-4 text-sm font-semibold text-orange-700">回答する →</span>
           </Link>

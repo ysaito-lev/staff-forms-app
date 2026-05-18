@@ -1,16 +1,18 @@
 "use client";
 
-import { MVBE_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
+import { MVBE_TITLE, READING_HABIT_TITLE, SOREINE_TITLE } from "@/lib/form-copy";
 import { SITE_TITLE } from "@/lib/site-brand";
 import { STRENGTHS_REPORT_UI } from "@/lib/strengths-report-ui";
 import {
   Activity,
   BarChart3,
+  BookOpen,
   ClipboardList,
+  Crown,
   Home,
   LineChart,
-  Sparkles,
-  Target,
+  Medal,
+  ThumbsUp,
   Trophy,
   type LucideIcon,
 } from "lucide-react";
@@ -32,9 +34,17 @@ const ACCENT = {
     box: "from-amber-400 via-orange-500 to-amber-700",
     icon: "text-white",
   },
+  readingHabit: {
+    box: "from-orange-300 via-orange-500 to-amber-700",
+    icon: "text-white",
+  },
   myAnswers: {
     box: "from-orange-300 via-amber-500 to-orange-600",
     icon: "text-white",
+  },
+  myAwards: {
+    box: "from-yellow-400 via-amber-500 to-orange-600",
+    icon: "text-orange-950/90",
   },
   strengths: {
     box: "from-orange-500 via-orange-600 to-red-900",
@@ -65,12 +75,19 @@ type NavDef = {
 
 const navMain: NavDef[] = [
   { href: "/", label: "サイトトップ", Icon: Home, accent: "home" },
-  { href: "/forms/soreine", label: SOREINE_TITLE, Icon: Target, accent: "soreine" },
-  { href: "/forms/mvbe", label: MVBE_TITLE, Icon: Sparkles, accent: "mvbe" },
+  { href: "/forms/soreine", label: SOREINE_TITLE, Icon: ThumbsUp, accent: "soreine" },
+  { href: "/forms/mvbe", label: MVBE_TITLE, Icon: Crown, accent: "mvbe" },
+  {
+    href: "/forms/reading-habit",
+    label: READING_HABIT_TITLE,
+    Icon: BookOpen,
+    accent: "readingHabit",
+  },
 ];
 
 const navSelf: NavDef[] = [
   { href: "/my-answers", label: "マイ回答・履歴", Icon: ClipboardList, accent: "myAnswers" },
+  { href: "/my-awards", label: "マイ受賞", Icon: Medal, accent: "myAwards" },
   { href: "/strengths-report", label: "強みレポート", Icon: LineChart, accent: "strengths" },
   { href: "/status", label: "回答状況", Icon: Activity, accent: "status" },
 ];
@@ -79,10 +96,16 @@ const navShared: NavDef[] = [
   { href: "/ranking", label: "月間ランキング", Icon: Trophy, accent: "ranking" },
 ];
 
+function normalizePathname(path: string): string {
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path;
+}
+
 function navActive(pathname: string, href: string) {
+  const p = normalizePathname(pathname);
   return href === "/"
-    ? pathname === "/"
-    : pathname === href || pathname.startsWith(`${href}/`);
+    ? p === "/"
+    : p === href || p.startsWith(`${href}/`);
 }
 
 function NavIconBox({
@@ -144,7 +167,7 @@ export function DashboardShell({ children, user }: Props) {
 
   const homeActive = navActive(pathname, "/");
   const brandRowClass = [
-    "group relative flex min-h-0 shrink-0 items-center justify-center border-b border-slate-800/90 px-2.5 py-3.5 text-center transition-colors md:py-[1.15rem]",
+    "group relative flex shrink-0 min-h-0 items-center justify-center border-b border-slate-800/90 px-2.5 py-3.5 text-center transition-colors md:py-[1.15rem]",
     homeActive
       ? "bg-slate-700"
       : "bg-slate-900 hover:bg-slate-800/80",
@@ -155,7 +178,7 @@ export function DashboardShell({ children, user }: Props) {
       className="fixed inset-0 z-0 flex min-h-0 flex-col overflow-hidden md:flex-row"
       style={{ backgroundColor: STRENGTHS_REPORT_UI.pageBg }}
     >
-      <aside className="shrink-0 overflow-y-auto overflow-x-hidden border-b border-slate-800 bg-slate-900 text-slate-100 md:flex md:h-full md:w-[17rem] md:min-h-0 md:flex-col md:overflow-hidden md:border-b-0 md:border-r">
+      <aside className="scrollbar-subtle-dark relative z-[1] max-h-[min(560px,62vh)] shrink-0 overflow-y-auto overflow-x-hidden border-b border-slate-800 bg-slate-900 text-slate-100 md:z-auto md:flex md:h-full md:max-h-none md:w-[17rem] md:min-h-0 md:flex-col md:overflow-hidden md:border-b-0 md:border-r">
         <Link href="/" className={brandRowClass}>
           <span
             className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-orange-500/25 via-slate-600/40 to-slate-800/80"
@@ -173,7 +196,7 @@ export function DashboardShell({ children, user }: Props) {
             {SITE_TITLE}
           </span>
         </Link>
-        <nav className="flex flex-1 flex-col gap-4 px-2.5 py-4 md:min-h-0 md:gap-4 md:py-3">
+        <nav className="scrollbar-subtle-dark flex flex-col gap-4 px-2.5 py-4 pb-6 md:min-h-0 md:flex-1 md:gap-4 md:overflow-y-auto md:overflow-x-hidden md:py-3 md:pb-3">
           <div className="min-w-0">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
               メイン
@@ -270,7 +293,7 @@ export function DashboardShell({ children, user }: Props) {
         </header>
 
         <main
-          className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain"
+          className="scrollbar-subtle min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-y-contain"
           style={{ backgroundColor: STRENGTHS_REPORT_UI.pageBg }}
         >
           {children}

@@ -262,6 +262,18 @@ export default function MyAnswersPage() {
                           <span className="text-slate-500">内容：</span>
                           {r.detail}
                         </p>
+                        {r.discordMessageUrl && (
+                          <p className="mt-3">
+                            <a
+                              href={r.discordMessageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-orange-700 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-900"
+                            >
+                              Discord のメッセージを開く
+                            </a>
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -364,6 +376,18 @@ export default function MyAnswersPage() {
                           <span className="text-slate-500">内容：</span>
                           {r.comment}
                         </p>
+                        {r.discordMessageUrl && (
+                          <p className="mt-3">
+                            <a
+                              href={r.discordMessageUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-orange-700 underline decoration-orange-400/70 underline-offset-2 hover:text-orange-900"
+                            >
+                              Discord のメッセージを開く
+                            </a>
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>

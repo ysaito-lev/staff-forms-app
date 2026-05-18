@@ -1,7 +1,9 @@
 import {
   inCalendarMonthJst,
   getCurrentYearMonthJst,
+  mvbeCanonicalWindowsOverlappingCalendarMonth,
   normalizeSheetTimestamp,
+  soreineSubmissionPeriodsOverlappingCalendarMonth,
 } from "@/lib/date-utils";
 import {
   MVBE_BLOCKS,
@@ -10,14 +12,25 @@ import {
   soreineValueToMvbeBlockKey,
   type MvbeBlockKey,
 } from "@/lib/form-copy";
-import { sheetsConfigured } from "@/lib/env";
+import {
+  getEnv,
+  getReadingHabitSpreadsheetId,
+  getSoreiineSpreadsheetId,
+  sheetsConfigured,
+} from "@/lib/env";
 import { getMergedMvbeSheetRowsForRead } from "@/lib/mvbe-sheet-rows";
 import { getActiveStaff } from "@/lib/master";
-import { isMvbePointRankingMonth } from "@/lib/mvbe-dept-weights";
 import {
   parseMvbeBlocksForRanking,
   parseMvbeV2Row,
+  parseSoreineRowToDisplay,
 } from "@/lib/response-sheet-layout";
+import {
+  findStaffByRespondentCells,
+  mvbeRespondentCells,
+  soreineRespondentCells,
+} from "@/lib/respondent-staff-match";
+import { getSheetRows } from "@/lib/sheets-read";
 import { nameKeyForMatch, normalizePersonNameForLookup } from "@/lib/person-name-match";
 import type { Staff } from "@/lib/staff-types";
 
@@ -54,13 +67,19 @@ export function shouldCountMvbeNominee(name: string, execNames: Set<string>): bo
   return true;
 }
 
-const RANKING_DISPLAY_TOP_N = 5;
+const RANKING_DISPLAY_TOP_N = 3;
 
-type RankedEntry = {
+/** ソレイイネ!! の暦月ランキング加点（1行あたり） */
+const SOREINE_RANKING_POINTS_PER_ROW = 0.25;
+
+/** 読書習慣シートが有効なとき、その暦月に提出があれば加算する点（未提出は別途 −1） */
+const READING_HABIT_RANKING_BONUS_POINTS = 1;
+
+export type RankedEntry = {
   rank: number;
   /** 回答シート上の選出氏名 */
   name: string;
-  /** レガシー暦月は票数、2026-05 以降はポイント合計 */
+  /** 総合点（MVBe・ソレイイネ・読書ボーナスおよび提出ペナルティ込み） */
   score: number;
   /** マスタの主な部署表示（未一致時は空相当の文言） */
   department: string;
@@ -69,6 +88,17 @@ type RankedEntry = {
 };
 
 type RawRanked = { rank: number; name: string; score: number };
+
+/** スコア順で上位 N（同点は同順位）。マイナス・ゼロも含む。 */
+function toRankedRowsTopN(counts: Map<string, number>, topN: number): RawRanked[] {
+  const list = [...counts.entries()].map(([name, score]) => ({ name, score }));
+  list.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "ja"));
+  const sliced = list.slice(0, topN);
+  return sliced.map((row) => {
+    const better = sliced.filter((x) => x.score > row.score).length;
+    return { rank: better + 1, name: row.name, score: row.score };
+  });
+}
 
 /** 同点は同順位、次の順位は飛ばす（1,1,3…） */
 function toRankedRows(counts: Map<string, number>): RawRanked[] {
@@ -82,12 +112,114 @@ function toRankedRows(counts: Map<string, number>): RawRanked[] {
   });
 }
 
+/** 集計キーは `nameKeyForMatch`。同点対応で 1 位のキー一覧 */
+export function mvbeRankOneNameKeys(counts: Map<string, number>): string[] {
+  return toRankedRows(counts)
+    .filter((r) => r.rank === 1)
+    .map((r) => r.name);
+}
+
 function staffByNameKeyMap(staff: Staff[]): Map<string, Staff> {
   const m = new Map<string, Staff>();
   for (const s of staff) {
     m.set(nameKeyForMatch(s.name), s);
   }
   return m;
+}
+
+function staffByIdMap(staff: Staff[]): Map<string, Staff> {
+  const m = new Map<string, Staff>();
+  for (const s of staff) m.set(s.id, s);
+  return m;
+}
+
+function resolvePraisedStaffId(
+  byId: Map<string, Staff>,
+  byNk: Map<string, Staff>,
+  praisedId: string,
+  praisedName: string
+): string | null {
+  const pid = praisedId.trim();
+  if (pid && byId.has(pid)) return pid;
+  const s = byNk.get(nameKeyForMatch(praisedName.trim()));
+  return s?.id ?? null;
+}
+
+function rowTimestampInRange(iso: string, start: Date, endExclusive: Date): boolean {
+  const t = new Date(iso);
+  if (Number.isNaN(t.getTime())) return false;
+  return t >= start && t < endExclusive;
+}
+
+/** 月間総合ランキング用: MVBe は選出ごとに常に +1（V2 の付与ポイント列は使わない）。 */
+function applyMvbeRankingRowUnifiedNomineePoints(
+  row: string[],
+  year: number,
+  month: number,
+  execNames: Set<string>,
+  totals: Map<string, number>
+): void {
+  if (!isDataRowFirstCell(row[0])) return;
+  const ts = normalizeSheetTimestamp(String(row[0]));
+  if (!inCalendarMonthJst(ts, year, month)) return;
+
+  const v2 = parseMvbeV2Row(row);
+  if (v2) {
+    const n = v2.nomineeName.trim();
+    if (!shouldCountMvbeNominee(n, execNames)) return;
+    const valNorm = normalizeSoreineValueCell(v2.valueRaw);
+    if (!valNorm) return;
+    const key = nameKeyForMatch(n);
+    totals.set(key, (totals.get(key) ?? 0) + 1);
+    return;
+  }
+  const blocks = parseMvbeBlocksForRanking(row);
+  if (!blocks) return;
+  for (const b of MVBE_BLOCKS) {
+    const nn = (blocks[b.key]?.staffName ?? "").trim();
+    if (!shouldCountMvbeNominee(nn, execNames)) continue;
+    const key = nameKeyForMatch(nn);
+    totals.set(key, (totals.get(key) ?? 0) + 1);
+  }
+}
+
+function applySoreineRankingRowUnifiedPoints(
+  row: string[],
+  year: number,
+  month: number,
+  staff: Staff[],
+  execNames: Set<string>,
+  totals: Map<string, number>
+): void {
+  if (!isDataRowFirstCell(row[0])) return;
+  const ts = normalizeSheetTimestamp(String(row[0]));
+  if (!inCalendarMonthJst(ts, year, month)) return;
+
+  let praisedId = "";
+  let praisedName = "";
+
+  const parsed = parseSoreineRowToDisplay(row);
+  if (parsed) {
+    praisedName = (parsed.praisedName ?? "").trim();
+  } else if (row.length >= 7) {
+    praisedId = String(row[3] ?? "").trim();
+    praisedName = String(row[4] ?? "").trim();
+  } else {
+    return;
+  }
+
+  if (!praisedName && !praisedId) return;
+
+  const byId = staffByIdMap(staff);
+  const byNk = staffByNameKeyMap(staff);
+  const sid = resolvePraisedStaffId(byId, byNk, praisedId, praisedName);
+  if (!sid) return;
+  const person = byId.get(sid);
+  if (!person) return;
+  if (!shouldCountMvbeNominee(person.name, execNames)) return;
+
+  const key = nameKeyForMatch(person.name);
+  totals.set(key, (totals.get(key) ?? 0) + SOREINE_RANKING_POINTS_PER_ROW);
 }
 
 function toRankedWithMeta(
@@ -113,11 +245,83 @@ function toRankedWithMeta(
 export type MonthlyRanking = {
   year: number;
   month: number;
-  /** true のとき score はポイント、false のときは票数 */
-  usesPoints: boolean;
-  /** MVBe ブロック key → ランキング */
-  mvbe: Record<MvbeBlockKey, RankedEntry[]>;
+  /** MVBe・ソレイイネ加点、読書提出 +1／未提出 −1、提出未達ペナルティ等を合算した上位表示 */
+  combined: RankedEntry[];
 };
+
+export function emptyMvbeBlockVoteMaps(): Record<MvbeBlockKey, Map<string, number>> {
+  return {
+    better: new Map(),
+    honest: new Map(),
+    proactive: new Map(),
+    challenging: new Map(),
+    authentic: new Map(),
+  };
+}
+
+/**
+ * MVBe 回答シートの1データ行を、指定月かつ当月の票数／ポイント方式にだけ紐づけてブロック別集計に加算する。
+ */
+export function applyMvbeRankingRowIntoMaps(
+  row: string[],
+  year: number,
+  month: number,
+  execNames: Set<string>,
+  usesPointsForMonth: boolean,
+  mvbeByBlock: Record<MvbeBlockKey, Map<string, number>>
+): void {
+  if (!isDataRowFirstCell(row[0])) return;
+  const ts = normalizeSheetTimestamp(String(row[0]));
+  if (!inCalendarMonthJst(ts, year, month)) return;
+
+  if (usesPointsForMonth) {
+    const v2 = parseMvbeV2Row(row);
+    if (v2) {
+      const n = v2.nomineeName.trim();
+      if (!shouldCountMvbeNominee(n, execNames)) return;
+      const valNorm = normalizeSoreineValueCell(v2.valueRaw);
+      if (!valNorm) return;
+      const bk = soreineValueToMvbeBlockKey(valNorm);
+      const key = nameKeyForMatch(n);
+      const map = mvbeByBlock[bk];
+      map.set(key, (map.get(key) ?? 0) + v2.pointsGranted);
+      return;
+    }
+    const blocks = parseMvbeBlocksForRanking(row);
+    if (!blocks) return;
+    for (const b of MVBE_BLOCKS) {
+      const nn = (blocks[b.key]?.staffName ?? "").trim();
+      if (!shouldCountMvbeNominee(nn, execNames)) continue;
+      const key = nameKeyForMatch(nn);
+      const map = mvbeByBlock[b.key];
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return;
+  }
+
+  const v2legacyMonth = parseMvbeV2Row(row);
+  if (v2legacyMonth) {
+    const n = v2legacyMonth.nomineeName.trim();
+    if (!shouldCountMvbeNominee(n, execNames)) return;
+    const valNorm = normalizeSoreineValueCell(v2legacyMonth.valueRaw);
+    if (!valNorm) return;
+    const bk = soreineValueToMvbeBlockKey(valNorm);
+    const key = nameKeyForMatch(n);
+    const map = mvbeByBlock[bk];
+    map.set(key, (map.get(key) ?? 0) + 1);
+    return;
+  }
+
+  const blocks = parseMvbeBlocksForRanking(row);
+  if (!blocks) return;
+  for (const b of MVBE_BLOCKS) {
+    const nn = (blocks[b.key]?.staffName ?? "").trim();
+    if (!shouldCountMvbeNominee(nn, execNames)) continue;
+    const key = nameKeyForMatch(nn);
+    const map = mvbeByBlock[b.key];
+    map.set(key, (map.get(key) ?? 0) + 1);
+  }
+}
 
 export async function loadMonthlyRanking(
   year: number,
@@ -126,89 +330,106 @@ export async function loadMonthlyRanking(
   if (!sheetsConfigured()) {
     return null;
   }
-  const usesPoints = isMvbePointRankingMonth(year, month);
-  const [mvbeRows, staff] = await Promise.all([
+  const e = getEnv();
+  const [mvbeRows, soreineRows, staff] = await Promise.all([
     getMergedMvbeSheetRowsForRead(),
+    getSheetRows(e.SHEET_RESPONSES_SOREINE, getSoreiineSpreadsheetId()),
     getActiveStaff(),
   ]);
-  const execNames = executiveNameSet(staff);
 
-  const mvbeByBlock: Record<MvbeBlockKey, Map<string, number>> = {
-    better: new Map(),
-    honest: new Map(),
-    proactive: new Map(),
-    challenging: new Map(),
-    authentic: new Map(),
-  };
+  let readingAnsweredStaffIds: Set<string> | null = null;
+  const readingBookId = getReadingHabitSpreadsheetId();
+  if (readingBookId) {
+    try {
+      const readingRows = await getSheetRows(
+        e.SHEET_RESPONSES_READING_HABIT,
+        readingBookId
+      );
+      readingAnsweredStaffIds = new Set<string>();
+      for (const row of readingRows) {
+        if (!isDataRowFirstCell(row[0])) continue;
+        const ts = normalizeSheetTimestamp(String(row[0]));
+        if (!inCalendarMonthJst(ts, year, month)) continue;
+        const cells = [String(row[1] ?? "").trim()].filter(Boolean);
+        const st = findStaffByRespondentCells(staff, cells);
+        if (st) readingAnsweredStaffIds.add(st.id);
+      }
+    } catch (err) {
+      console.warn("[ranking] reading habit sheet unreadable:", err);
+      readingAnsweredStaffIds = null;
+    }
+  }
+
+  const execNames = executiveNameSet(staff);
+  const combinedScores = new Map<string, number>();
 
   for (const row of mvbeRows) {
-    if (!isDataRowFirstCell(row[0])) continue;
-    const ts = normalizeSheetTimestamp(String(row[0]));
-    if (!inCalendarMonthJst(ts, year, month)) continue;
+    applyMvbeRankingRowUnifiedNomineePoints(row, year, month, execNames, combinedScores);
+  }
+  for (const row of soreineRows) {
+    applySoreineRankingRowUnifiedPoints(row, year, month, staff, execNames, combinedScores);
+  }
 
-    if (usesPoints) {
-      const v2 = parseMvbeV2Row(row);
-      if (v2) {
-        const n = v2.nomineeName.trim();
-        if (!shouldCountMvbeNominee(n, execNames)) continue;
-        const valNorm = normalizeSoreineValueCell(v2.valueRaw);
-        if (!valNorm) continue;
-        const bk = soreineValueToMvbeBlockKey(valNorm);
-        const key = nameKeyForMatch(n);
-        const map = mvbeByBlock[bk];
-        map.set(key, (map.get(key) ?? 0) + v2.pointsGranted);
-        continue;
+  const mvbeWindows = mvbeCanonicalWindowsOverlappingCalendarMonth(year, month);
+  const soreineWeeks = soreineSubmissionPeriodsOverlappingCalendarMonth(year, month);
+
+  for (const s of staff) {
+    const k = nameKeyForMatch(s.name);
+    let penaltyUnits = 0;
+
+    for (const w of mvbeWindows) {
+      let answered = false;
+      for (const row of mvbeRows) {
+        if (!isDataRowFirstCell(row[0])) continue;
+        const ts = normalizeSheetTimestamp(String(row[0]));
+        if (!rowTimestampInRange(ts, w.start, w.endExclusive)) continue;
+        const r = findStaffByRespondentCells(staff, mvbeRespondentCells(row));
+        if (r?.id === s.id) {
+          answered = true;
+          break;
+        }
       }
-      const blocks = parseMvbeBlocksForRanking(row);
-      if (!blocks) continue;
-      for (const b of MVBE_BLOCKS) {
-        const nn = (blocks[b.key]?.staffName ?? "").trim();
-        if (!shouldCountMvbeNominee(nn, execNames)) continue;
-        const key = nameKeyForMatch(nn);
-        const map = mvbeByBlock[b.key];
-        map.set(key, (map.get(key) ?? 0) + 1);
-      }
-      continue;
+      if (!answered) penaltyUnits += 1;
     }
 
-    // ポイント制開始より前でも、Web 追記の V2 行は同一ロジックで軸→ブロックに振り分け、票として集計する
-    const v2legacyMonth = parseMvbeV2Row(row);
-    if (v2legacyMonth) {
-      const n = v2legacyMonth.nomineeName.trim();
-      if (!shouldCountMvbeNominee(n, execNames)) continue;
-      const valNorm = normalizeSoreineValueCell(v2legacyMonth.valueRaw);
-      if (!valNorm) continue;
-      const bk = soreineValueToMvbeBlockKey(valNorm);
-      const key = nameKeyForMatch(n);
-      const map = mvbeByBlock[bk];
-      map.set(key, (map.get(key) ?? 0) + 1);
-      continue;
+    for (const w of soreineWeeks) {
+      let answered = false;
+      for (const row of soreineRows) {
+        if (!isDataRowFirstCell(row[0])) continue;
+        const ts = normalizeSheetTimestamp(String(row[0]));
+        if (!rowTimestampInRange(ts, w.start, w.endExclusive)) continue;
+        const r = findStaffByRespondentCells(staff, soreineRespondentCells(row));
+        if (r?.id === s.id) {
+          answered = true;
+          break;
+        }
+      }
+      if (!answered) penaltyUnits += 1;
     }
 
-    const blocks = parseMvbeBlocksForRanking(row);
-    if (!blocks) continue;
-    for (const b of MVBE_BLOCKS) {
-      const nn = (blocks[b.key]?.staffName ?? "").trim();
-      if (!shouldCountMvbeNominee(nn, execNames)) continue;
-      const key = nameKeyForMatch(nn);
-      const map = mvbeByBlock[b.key];
-      map.set(key, (map.get(key) ?? 0) + 1);
+    if (readingAnsweredStaffIds !== null && !readingAnsweredStaffIds.has(s.id)) {
+      penaltyUnits += 1;
+    }
+
+    if (penaltyUnits !== 0) {
+      combinedScores.set(k, (combinedScores.get(k) ?? 0) - penaltyUnits);
+    }
+
+    if (readingAnsweredStaffIds !== null && readingAnsweredStaffIds.has(s.id)) {
+      combinedScores.set(
+        k,
+        (combinedScores.get(k) ?? 0) + READING_HABIT_RANKING_BONUS_POINTS
+      );
     }
   }
 
-  const mvbe: Record<MvbeBlockKey, RankedEntry[]> = {} as Record<
-    MvbeBlockKey,
-    RankedEntry[]
-  >;
-  for (const b of MVBE_BLOCKS) {
-    mvbe[b.key] = toRankedWithMeta(
-      toRankedRows(mvbeByBlock[b.key]),
-      staff,
-      RANKING_DISPLAY_TOP_N
-    );
-  }
+  const combined = toRankedWithMeta(
+    toRankedRowsTopN(combinedScores, RANKING_DISPLAY_TOP_N),
+    staff,
+    RANKING_DISPLAY_TOP_N
+  );
 
-  return { year, month, usesPoints, mvbe };
+  return { year, month, combined };
 }
 
 export { getCurrentYearMonthJst };

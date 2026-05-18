@@ -2,23 +2,25 @@ import { SOREINE_VALUES, normalizeSoreineValueCell } from "@/lib/form-copy";
 import {
   getCalendarMonthRangeJst,
   getJstYearMonthFromIso,
-  inThisWeek,
+  getSoreineSubmissionPeriodBoundsJst,
+  inCalendarMonthJst,
+  inCurrentSoreineSubmissionPeriod,
   isIsoInRange,
   normalizeSheetTimestamp,
-  startOfIsoWeekJst,
   submissionInMvbeWindowJst,
 } from "@/lib/date-utils";
 import { getActiveStaff } from "@/lib/master";
 import { addCalendarMonths, formatYearMonthParam } from "@/lib/ranking-data";
 import { nameKeyForMatch } from "@/lib/person-name-match";
 import {
-  isMvbeV2Row,
-  isWideMvbeWithIdColumns,
-  MVBE_V2_I,
-  parseSoreineRowToDisplay,
-} from "@/lib/response-sheet-layout";
+  findStaffByRespondentCells,
+  mvbeRespondentCells,
+  soreineRespondentCells,
+} from "@/lib/respondent-staff-match";
+import { parseSoreineRowToDisplay } from "@/lib/response-sheet-layout";
 import {
   getEnv,
+  getReadingHabitSpreadsheetId,
   getSoreiineSpreadsheetId,
   sheetsConfigured,
 } from "@/lib/env";
@@ -27,27 +29,24 @@ import { getSheetRows } from "@/lib/sheets-read";
 import { mainDepartment } from "@/lib/staff-types";
 import type { Staff } from "@/lib/staff-types";
 
-function weekStartLabelJst(t: Date): string {
-  const w = startOfIsoWeekJst(t);
-  const a = (() => {
-    const d = w;
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Tokyo",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(d);
-    let y = 0,
-      m = 0,
-      day = 0;
-    for (const p of parts) {
-      if (p.type === "year") y = +p.value;
-      if (p.type === "month") m = +p.value;
-      if (p.type === "day") day = +p.value;
-    }
-    return { y, m, day };
-  })();
-  return `${a.m}/${a.day} 始まり週`;
+/** ソレイイネ提出期の表示用ラベル（締切月曜・火〜月サイクル） */
+function soreinePeriodWeekLabelFromTimestampIso(ts: string): string {
+  const t = new Date(ts);
+  if (Number.isNaN(t.getTime())) return "";
+  const { endExclusive } = getSoreineSubmissionPeriodBoundsJst(t);
+  const closingMon = new Date(endExclusive.getTime() - 1);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Tokyo",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(closingMon);
+  let m = 0,
+    day = 0;
+  for (const p of parts) {
+    if (p.type === "month") m = +p.value;
+    if (p.type === "day") day = +p.value;
+  }
+  return `${m}/${day} 締切の週（火〜月）`;
 }
 
 export function isDataRowFirstCell(cell: unknown): boolean {
@@ -59,57 +58,6 @@ export function isDataRowFirstCell(cell: unknown): boolean {
     /^\d{4}\/\d{1,2}\/\d{1,2}/.test(s) ||
     /^\d{4}-\d{1,2}-\d{1,2}/.test(s)
   );
-}
-
-function findStaffByRespondentCells(
-  staffList: Staff[],
-  cells: string[]
-): Staff | null {
-  for (const c of cells) {
-    const t = c.trim();
-    if (!t) continue;
-    for (const s of staffList) {
-      if (s.id === t) return s;
-    }
-  }
-  for (const c of cells) {
-    const t = c.trim();
-    if (!t) continue;
-    const k = nameKeyForMatch(t);
-    if (!k) continue;
-    for (const s of staffList) {
-      if (nameKeyForMatch(s.name) === k) return s;
-    }
-  }
-  return null;
-}
-
-function soreineRespondentCells(row: string[]): string[] {
-  const parsed = parseSoreineRowToDisplay(row);
-  if (parsed) {
-    return [String(row[1] ?? "").trim()].filter(Boolean);
-  }
-  if (row.length >= 7) {
-    return [String(row[1] ?? "").trim(), String(row[2] ?? "").trim()].filter(
-      Boolean
-    );
-  }
-  return [String(row[1] ?? "").trim()].filter(Boolean);
-}
-
-function mvbeRespondentCells(row: string[]): string[] {
-  if (isMvbeV2Row(row)) {
-    return [
-      String(row[MVBE_V2_I.respondentId] ?? "").trim(),
-      String(row[MVBE_V2_I.respondentName] ?? "").trim(),
-    ].filter(Boolean);
-  }
-  if (row.length >= 12 && isWideMvbeWithIdColumns(row)) {
-    return [String(row[1] ?? "").trim(), String(row[2] ?? "").trim()].filter(
-      Boolean
-    );
-  }
-  return [String(row[1] ?? "").trim()].filter(Boolean);
 }
 
 function ratePercent(unique: number, eligible: number): number | null {
@@ -127,6 +75,14 @@ type SoreineValueCount = { valueLabel: string; count: number };
 type WeekCount = { weekStartLabel: string; count: number };
 type DeptCount = { department: string; countRows: number; unique: number };
 
+/** 選択暦月のソレイイネ送信件数（回答者ごと） */
+export type SoreineRespondentSubmissionRow = {
+  staffId: string | null;
+  name: string;
+  department: string;
+  count: number;
+};
+
 export type AdminStatsBundle = {
   year: number;
   month: number;
@@ -136,12 +92,27 @@ export type AdminStatsBundle = {
       byValue: SoreineValueCount[];
       byWeek: WeekCount[];
       byDepartment: DeptCount[];
+      byRespondent: SoreineRespondentSubmissionRow[];
     };
     mvbe: CountSnapshot & { byDepartment: DeptCount[] };
   };
   previousMonth: { year: number; month: number; soreine: CountSnapshot; mvbe: CountSnapshot };
   yearAgo: { year: number; month: number; soreine: CountSnapshot; mvbe: CountSnapshot };
+  /** 読書習慣フォーム（`GOOGLE_READING_HABIT_SPREADSHEET_ID`）。選択した集計暦月のタイムスタンプで判定 */
+  readingHabit: ReadingHabitMonthRollup;
 };
+
+/** 選択暦月の読書習慣シート集計 */
+export type ReadingHabitMonthRollup =
+  | { mode: "disabled" }
+  | { mode: "error" }
+  | {
+      mode: "ok";
+      totalRows: number;
+      uniqueRespondents: number;
+      responseRatePercent: number | null;
+      notSubmitted: { id: string; name: string; department: string }[];
+    };
 
 export type NonResponders = {
   soreineNotThisWeek: { id: string; name: string; department: string }[];
@@ -150,11 +121,20 @@ export type NonResponders = {
 
 type MonthKey = string;
 
+type SoreineRespondentAggVal = {
+  staffId: string | null;
+  name: string;
+  department: string;
+  count: number;
+};
+
 type Agg = {
   soreineRows: number;
   soreineIds: Set<string>;
   valueCounts: Map<string, number>;
   soreineDept: Map<string, { rows: number; ids: Set<string> }>;
+  /** 当月（kCur）行のときのみ使用。キーは `id:…` または `unmatched:…` */
+  soreineRespondentByKey: Map<string, SoreineRespondentAggVal>;
   weekCounts: Map<string, { label: string; n: number }>;
   mvbeRows: number;
   mvbeIds: Set<string>;
@@ -167,6 +147,7 @@ function emptyAgg(): Agg {
     soreineIds: new Set(),
     valueCounts: new Map(),
     soreineDept: new Map(),
+    soreineRespondentByKey: new Map(),
     weekCounts: new Map(),
     mvbeRows: 0,
     mvbeIds: new Set(),
@@ -211,6 +192,14 @@ function deptMapToList(m: Map<string, { rows: number; ids: Set<string> }>): Dept
     .sort((a, b) => b.countRows - a.countRows || a.department.localeCompare(b.department, "ja"));
 }
 
+function soreineRespondentMapToList(
+  m: Map<string, SoreineRespondentAggVal>
+): SoreineRespondentSubmissionRow[] {
+  return [...m.values()]
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "ja"));
+}
+
 /**
  * 管理画面：指定暦月（JST）の KPI ・週次・Value ・部門、および前月・前年同月比較
  */
@@ -239,10 +228,53 @@ export async function loadAdminStatsForMonth(
   const byMonth = new Map<MonthKey, Agg>();
   for (const k of want) byMonth.set(k, emptyAgg());
 
-  const [soreineRows, mvbeRows] = await Promise.all([
+  const [soreineRows, mvbeRows, readingFetch] = await Promise.all([
     getSheetRows(e.SHEET_RESPONSES_SOREINE, getSoreiineSpreadsheetId()),
     getMergedMvbeSheetRowsForRead(),
+    (() => {
+      const rid = getReadingHabitSpreadsheetId();
+      if (!rid) {
+        return Promise.resolve({ kind: "skipped" as const });
+      }
+      return getSheetRows(e.SHEET_RESPONSES_READING_HABIT, rid)
+        .then((rows) => ({ kind: "ok" as const, rows }))
+        .catch(() => ({ kind: "error" as const }));
+    })(),
   ]);
+
+  let readingHabit: ReadingHabitMonthRollup;
+  if (readingFetch.kind === "skipped") {
+    readingHabit = { mode: "disabled" };
+  } else if (readingFetch.kind === "error") {
+    readingHabit = { mode: "error" };
+  } else {
+    let totalRows = 0;
+    const answeredIds = new Set<string>();
+    for (const row of readingFetch.rows) {
+      if (!isDataRowFirstCell(row[0])) continue;
+      const ts = normalizeSheetTimestamp(String(row[0]));
+      if (!inCalendarMonthJst(ts, year, month)) continue;
+      totalRows += 1;
+      const cells = [String(row[1] ?? "").trim()].filter(Boolean);
+      const st = findStaffByRespondentCells(staff, cells);
+      if (st) answeredIds.add(st.id);
+    }
+    const notSubmitted = staff
+      .filter((s) => !answeredIds.has(s.id))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        department: mainDepartment(s.department),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ja"));
+    readingHabit = {
+      mode: "ok",
+      totalRows,
+      uniqueRespondents: answeredIds.size,
+      responseRatePercent: ratePercent(answeredIds.size, eligible),
+      notSubmitted,
+    };
+  }
 
   for (const row of soreineRows) {
     if (!isDataRowFirstCell(row[0])) continue;
@@ -274,11 +306,40 @@ export async function loadAdminStatsForMonth(
       bumpDept(agg.soreineDept, "（回答者名がマスタと不一致）", null);
     }
 
+    if (key === kCur) {
+      if (rStaff) {
+        const rk = `id:${rStaff.id}`;
+        const prev = agg.soreineRespondentByKey.get(rk) ?? {
+          staffId: rStaff.id,
+          name: rStaff.name,
+          department: mainDepartment(rStaff.department),
+          count: 0,
+        };
+        prev.count += 1;
+        agg.soreineRespondentByKey.set(rk, prev);
+      } else {
+        const cells = soreineRespondentCells(row);
+        const displayName =
+          cells.map((c) => c.trim()).find(Boolean) ?? "（記載なし）";
+        const nk = nameKeyForMatch(displayName) || displayName;
+        const rk = `unmatched:${nk}`;
+        const prev = agg.soreineRespondentByKey.get(rk) ?? {
+          staffId: null,
+          name: displayName,
+          department: "（回答者名がマスタと不一致）",
+          count: 0,
+        };
+        prev.count += 1;
+        agg.soreineRespondentByKey.set(rk, prev);
+      }
+    }
+
     if (key === kCur && isIsoInRange(ts, startCur, endCur)) {
       const t = new Date(ts);
       if (!Number.isNaN(t.getTime())) {
-        const wk = startOfIsoWeekJst(t).toISOString();
-        const label = weekStartLabelJst(t);
+        const { start: periodStart } = getSoreineSubmissionPeriodBoundsJst(t);
+        const wk = periodStart.toISOString();
+        const label = soreinePeriodWeekLabelFromTimestampIso(ts);
         const cur = agg.weekCounts.get(wk) ?? { label, n: 0 };
         cur.n += 1;
         cur.label = label;
@@ -320,17 +381,22 @@ export async function loadAdminStatsForMonth(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, v]) => ({ weekStartLabel: v.label, count: v.n }));
 
+  const byRespondent = soreineRespondentMapToList(curA.soreineRespondentByKey);
+
+  const currentSoreine: AdminStatsBundle["current"]["soreine"] = {
+    ...aggToCountSnapshot(curA, "soreine", eligible),
+    byValue,
+    byWeek,
+    byDepartment: deptMapToList(curA.soreineDept),
+    byRespondent,
+  };
+
   return {
     year,
     month,
     eligibleStaff: eligible,
     current: {
-      soreine: {
-        ...aggToCountSnapshot(curA, "soreine", eligible),
-        byValue,
-        byWeek,
-        byDepartment: deptMapToList(curA.soreineDept),
-      },
+      soreine: currentSoreine,
       mvbe: {
         ...aggToCountSnapshot(curA, "mvbe", eligible),
         byDepartment: deptMapToList(curA.mvbeDept),
@@ -348,6 +414,7 @@ export async function loadAdminStatsForMonth(
       soreine: aggToCountSnapshot(yoyA, "soreine", eligible),
       mvbe: aggToCountSnapshot(yoyA, "mvbe", eligible),
     },
+    readingHabit,
   };
 }
 
@@ -365,7 +432,7 @@ export async function loadNonResponders(): Promise<NonResponders | null> {
   for (const row of soreineRows) {
     if (!isDataRowFirstCell(row[0])) continue;
     const ts = normalizeSheetTimestamp(String(row[0]));
-    if (!inThisWeek(ts)) continue;
+    if (!inCurrentSoreineSubmissionPeriod(ts)) continue;
     const st = findStaffByRespondentCells(staff, soreineRespondentCells(row));
     if (st) weekAnswered.add(st.id);
   }

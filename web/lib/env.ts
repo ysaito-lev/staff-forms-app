@@ -14,6 +14,8 @@ const envSchema = z.object({
   GOOGLE_RESPONSES_SOREINE_SPREADSHEET_ID: z.string().min(1).optional(),
   /** MVBe 回答（未設定なら上記と同様のフォールバック） */
   GOOGLE_RESPONSES_MVBE_SPREADSHEET_ID: z.string().min(1).optional(),
+  /** 読書習慣フォーム回答（未設定なら読書のランキング加算・減点はスキップ） */
+  GOOGLE_READING_HABIT_SPREADSHEET_ID: z.string().min(1).optional(),
   GOOGLE_SERVICE_ACCOUNT_JSON: z.string().min(2).optional(),
   /** 単体テスト・デバッグ用。未使用時は当月（JST）の「yyyy年m月」シートを読む */
   SHEET_MASTER_DEBUG: z.string().optional(),
@@ -28,11 +30,13 @@ const envSchema = z.object({
    * 読み取り（ランキング・マイ回答等）で主タブと結合する。追記はしない。
    */
   SHEET_RESPONSES_MVBE_LEGACY: z.string().optional(),
+  /** 読書習慣（`GOOGLE_READING_HABIT_SPREADSHEET_ID` ブック内） */
+  SHEET_RESPONSES_READING_HABIT: z.string().default("フォームの回答 1"),
   /** （レガシー）rogin タブ名。アプリのログイン申請追記は廃止。スプレッドシート上の表は他用途で利用可。 */
   SHEET_REGISTRATION: z.string().default("rogin"),
   /** Discord 表示名 / フォーム上の名 / ユーザーID（Code.gs のメンバー対応表） */
   SHEET_MEMBER_DISCORD_MAP: z.string().default("メンバー対応表"),
-  /** ソレイイネの賞賛通知（未設定なら行のみ追記。F 列空のまま＝GAS `checkAndSendResponses` が通知可） */
+  /** ソレイイネの賞賛通知（未設定なら行のみ追記。F 列空のまま＝GAS `checkAndSendResponses` が通知可）。`wait=true` でメッセージ情報が返る Webhook 設定時、送信後に G 列へ Discord メッセージ URL を記録する */
   DISCORD_SOREINE_WEBHOOK_URL: z.string().optional(),
   /** ギルドメンバー検索用（GAS `searchDiscordMember` 相当。未設定なら表マッチのみ） */
   DISCORD_BOT_TOKEN: z.string().optional(),
@@ -89,6 +93,10 @@ const envSchema = z.object({
    * Discord API: Execute Webhook に `thread_id` クエリを付与する形。
    */
   DISCORD_MVBE_REMINDER_THREAD_ID: z.string().optional(),
+  /** 読書習慣フォーム提出時の Discord 通知（任意。未設定ならシート追記のみ） */
+  DISCORD_READING_HABIT_WEBHOOK_URL: z.string().optional(),
+  /** 読書通知 Webhook の投稿先スレッド ID（任意） */
+  DISCORD_READING_HABIT_THREAD_ID: z.string().optional(),
   /** Cron / 手動以外からリマインド API を叩くときの共有シークレット */
   MVBE_REMINDER_CRON_SECRET: z.string().optional(),
   /**
@@ -104,6 +112,14 @@ const envSchema = z.object({
   SHEET_MVBE_REMINDER_TEMPLATE: z.string().default("MVBeリマインド"),
   /** テンプレート本文セル（A1 記法） */
   SHEET_MVBE_REMINDER_TEMPLATE_CELL: z.string().default("A1"),
+
+  /**
+   * 本人向け「マイ受賞」に読み込む受賞リスト用スプレッドシート ID（別ブック）。
+   * 未設定時は別賞は表示しない（MVBe メダルのみ）。
+   */
+  GOOGLE_AWARDS_REGISTRY_SPREADSHEET_ID: z.string().min(1).optional(),
+  /** `GOOGLE_AWARDS_REGISTRY_SPREADSHEET_ID` ブック内のタブ名 */
+  SHEET_MY_AWARDS: z.string().default("個人受賞一覧"),
 
   /** （将来用）メール送信用 SMTP。現状アプリ未使用。 */
   SMTP_HOST: z.string().optional(),
@@ -171,6 +187,16 @@ export function getMvbeSpreadsheetId(): string {
   return getResponsesSpreadsheetId();
 }
 
+/** 読書習慣フォームのスプレッドシート（未設定時は空文字） */
+export function getReadingHabitSpreadsheetId(): string {
+  return getEnv().GOOGLE_READING_HABIT_SPREADSHEET_ID?.trim() ?? "";
+}
+
+/** 読書習慣の Web 追記・ランキング連携に必要な環境が揃っているか */
+export function readingHabitSpreadsheetConfigured(): boolean {
+  return sheetsConfigured() && Boolean(getReadingHabitSpreadsheetId());
+}
+
 /** モックマスタ（デモデータ）を使うか。`use` 接頭辞は React のルールと衝突するため付けない */
 export function mockMasterEnabled(): boolean {
   const e = getEnv();
@@ -197,4 +223,19 @@ export function geminiConfigured(): boolean {
 
 export function strengthsSnapshotTableConfigured(): boolean {
   return Boolean(getEnv().DYNAMODB_STRENGTHS_SNAPSHOT_TABLE?.trim());
+}
+
+/** 本人向け受賞リスト（別スプレッドシート）が利用可能か */
+export function awardsRegistrySheetConfigured(): boolean {
+  const e = getEnv();
+  return Boolean(
+    e.GOOGLE_AWARDS_REGISTRY_SPREADSHEET_ID?.trim() &&
+      e.GOOGLE_SERVICE_ACCOUNT_JSON
+  );
+}
+
+export function getAwardsRegistrySpreadsheetId(): string {
+  const id = getEnv().GOOGLE_AWARDS_REGISTRY_SPREADSHEET_ID?.trim();
+  if (!id) return "";
+  return id;
 }
